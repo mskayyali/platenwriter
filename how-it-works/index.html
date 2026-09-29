@@ -1,0 +1,1305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Platen works</title>
+<meta name="description" content="How Platen, a thermal typewriter in the browser, was designed: the real machines behind each part, what it approximates, and the calls made along the way.">
+<link rel="canonical" href="https://platenwriter.app/how-it-works/">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b0a09">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0b0a09; --panel: #141210; --ink: #e9e2d2; --dim: #948b7c; --faint: #3a352e; --line: #25221e;
+  --red: #c8452f; --mark: rgb(212,88,58); --code: #1c1916; --green: #1e2c1e; --shadow: 0 1px 0 rgba(255,255,255,.02), 0 20px 40px rgba(0,0,0,.4);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.7 "IBM Plex Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: inherit; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+a:hover { text-decoration-color: var(--red); }
+code, kbd, .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: .86em; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+kbd { border: 1px solid var(--faint); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--panel); white-space: nowrap; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 56px; }
+nav.toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow: auto; padding: 48px 0 32px; font: 12px/1.9 "IBM Plex Mono", monospace; }
+nav.toc .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; letter-spacing: .4em; font-weight: 500; }
+nav.toc a { display: block; color: var(--dim); text-decoration: none; padding: 1px 8px; border-radius: 6px; }
+nav.toc a:hover { color: var(--ink); }
+nav.toc a.on { color: var(--ink); background: rgba(233,226,210,.06); }
+main { padding: 48px 0 120px; min-width: 0; }
+header.hero { padding: 40px 0 34px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.eyebrow { font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .22em; text-transform: uppercase; color: var(--red); }
+h1 { font: 400 clamp(40px, 6vw, 64px)/1.05 "Courier Prime", monospace; margin: 14px 0 18px; letter-spacing: -.01em; }
+h2 { font: 400 32px/1.2 "Courier Prime", monospace; margin: 84px 0 14px; scroll-margin-top: 24px; }
+h2 .n { color: var(--red); font-size: .6em; vertical-align: .35em; margin-right: 10px; font-family: "IBM Plex Mono", monospace; }
+h3 { font: 600 17px/1.4 "IBM Plex Sans", sans-serif; margin: 38px 0 8px; }
+p { margin: 0 0 14px; max-width: 68ch; }
+.lede { font-size: 19px; line-height: 1.6; color: var(--dim); max-width: 60ch; }
+ul, ol { padding-left: 20px; max-width: 68ch; } li { margin: 4px 0; }
+.meta { font: 12px "IBM Plex Mono", monospace; color: var(--dim); margin-top: 22px; }
+figure { margin: 26px 0; }
+figure img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 8px; background: var(--code); }
+figcaption { font-size: 13px; line-height: 1.5; color: var(--dim); margin-top: 8px; }
+figcaption .credit { display: block; font: 11px "IBM Plex Mono", monospace; opacity: .8; margin-top: 3px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 22px; margin: 26px 0; }
+.gallery figure { margin: 0; }
+.gallery .ph { aspect-ratio: 4 / 3; overflow: hidden; border-radius: 8px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; box-shadow: var(--shadow); margin: 22px 0; }
+.card > :last-child { margin-bottom: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.grid2 .card { margin: 0; }
+.tag { display: inline-block; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--faint); color: var(--dim); margin-bottom: 10px; }
+.tag.real { color: var(--ink); } .tag.ours { color: var(--red); border-color: var(--red); }
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 18px 0; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+td:first-child { font-weight: 500; white-space: nowrap; }
+.tablewrap { overflow-x: auto; }
+pre { background: var(--code); padding: 16px 18px; border-radius: 8px; overflow-x: auto; font: 13px/1.6 "IBM Plex Mono", monospace; }
+blockquote { margin: 24px 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--red); font: italic 20px/1.5 "Courier Prime", monospace; max-width: 60ch; }
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+.diagram svg { width: 100%; height: auto; display: block; }
+svg text { font-family: "IBM Plex Mono", monospace; fill: var(--ink); }
+svg .dim { fill: var(--dim); } svg .st { stroke: var(--ink); fill: none; } svg .stdim { stroke: var(--faint); fill: none; }
+svg .red { fill: var(--red); } svg .redst { stroke: var(--red); fill: none; }
+svg .pap { fill: var(--bg); stroke: var(--dim); }
+.spectrum { position: relative; margin: 30px 0 10px; }
+.spectrum .bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--faint), var(--red), var(--faint)); }
+.spectrum .ticks { display: flex; justify-content: space-between; font: 11px "IBM Plex Mono", monospace; color: var(--dim); margin-top: 10px; }
+.spectrum .pin { position: absolute; top: -26px; left: 52%; transform: translateX(-50%); font: 500 11px "IBM Plex Mono", monospace; color: var(--red); white-space: nowrap; }
+.spectrum .pin::after { content: ""; position: absolute; left: 50%; top: 18px; width: 2px; height: 14px; background: var(--red); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; font-size: 14px; }
+.kv dt { font-family: "IBM Plex Mono", monospace; color: var(--dim); font-size: 13px; } .kv dd { margin: 0; }
+.foot { margin-top: 90px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; color: var(--dim); }
+/* the tour: chapters on the left drive the machine pinned on the right */
+.tour { display: grid; grid-template-columns: minmax(320px, 440px) minmax(0, 1fr); gap: 44px; margin: 34px 0 40px; align-items: start; }
+.tour-stage { grid-column: 2; grid-row: 1; position: sticky; top: 16px; height: calc(100vh - 32px); border-radius: 14px; overflow: hidden; background: #0b0a09; border: 1px solid var(--line); }
+.tour-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+.tour-steps { grid-column: 1; grid-row: 1; min-width: 0; }
+.step { padding: 16vh 0 12vh; min-height: 96vh; opacity: .3; transition: opacity .5s; scroll-margin-top: 8px; }
+.step.on { opacity: 1; }
+.step:first-child { padding-top: 2vh; }
+.step:last-child { min-height: 80vh; }
+.step .k { font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .16em; text-transform: uppercase; color: var(--red); }
+.step h3 { font: 400 30px/1.15 "Courier Prime", monospace; margin: 8px 0 12px; }
+.step .lead { font-size: 17px; line-height: 1.6; color: var(--dim); }
+.step h4 { font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin: 22px 0 6px; }
+.step p, .step li { font-size: 15px; }
+.step ul { padding-left: 18px; }
+.figs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 18px 0 6px; }
+.figs:has(> figure:only-child) { grid-template-columns: 1fr; }
+.figs figure { margin: 0; }
+.figs .ph { aspect-ratio: 4 / 3; overflow: hidden; border-radius: 8px; background: var(--code); cursor: zoom-in; }
+.figs img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .5s; }
+.figs .ph:hover img { transform: scale(1.04); }
+.figs figcaption { font-size: 12px; line-height: 1.45; margin-top: 6px; }
+.figs figcaption .credit { font-size: 10px; }
+.choice { background: linear-gradient(135deg, rgba(200,69,47,.13), rgba(200,69,47,.04) 60%); padding: 16px 18px 15px; border-radius: 14px; font-size: 14.5px; line-height: 1.6; margin: 22px 0 12px; }
+.choice b { display: flex; align-items: center; gap: 8px; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: #e07a62; margin-bottom: 6px; }
+.choice b::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--red); }
+.step .code { font: 11px "IBM Plex Mono", monospace; color: var(--dim); }
+.step .code::before { content: "code → "; opacity: .7; }
+table.mini { font-size: 12.5px; margin: 12px 0; } table.mini th, table.mini td { padding: 7px 8px; } table.mini td:first-child { white-space: nowrap; }
+.step .diagram { padding: 10px; margin: 12px 0; }
+.xv-load { position: absolute; inset: 0; display: grid; place-items: center; color: #8a857b; font: 12px "IBM Plex Mono", monospace; letter-spacing: .1em; }
+.xv-marks { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.xv-m { position: absolute; left: 0; top: 0; width: 22px; height: 22px; border-radius: 50%; border: 1px solid rgba(233,226,210,.5); background: rgba(11,10,9,.72);
+  color: #e9e2d2; font: 500 10px "IBM Plex Mono", monospace; display: grid; place-items: center; padding: 0; cursor: pointer; opacity: 0; transition: background .2s, border-color .2s, opacity .3s; backdrop-filter: blur(4px); }
+.xv-m.hover { background: #c8452f; border-color: #c8452f; color: #fff6ee; }
+.xv-tip { position: absolute; left: 0; top: 0; pointer-events: none; font: 500 11px "IBM Plex Mono", monospace; color: #e9e2d2; background: rgba(11,10,9,.88);
+  border: 1px solid rgba(233,226,210,.18); padding: 4px 8px; border-radius: 4px; opacity: 0; transition: opacity .15s; white-space: nowrap; z-index: 2; }
+.xv-tip.on { opacity: 1; }
+.xv-chip { position: absolute; top: 14px; left: 14px; font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .06em; color: #e9e2d2; background: rgba(14,13,12,.72);
+  border: 1px solid rgba(233,226,210,.14); padding: 6px 12px; border-radius: 999px; backdrop-filter: blur(8px); max-width: calc(100% - 28px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.xv-bar { position: absolute; left: 50%; transform: translateX(-50%); bottom: 14px; width: min(460px, calc(100% - 28px)); display: flex; align-items: center; gap: 10px; padding: 5px; border-radius: 999px;
+  background: rgba(14,13,12,.78); border: 1px solid rgba(233,226,210,.12); backdrop-filter: blur(8px); font: 500 11px "IBM Plex Mono", monospace; }
+.xv-bar button { font: inherit; color: #e9e2d2; background: rgba(233,226,210,.08); border: 0; border-radius: 999px; padding: 6px 14px; cursor: pointer; min-width: 88px; }
+.xv-bar button:hover { background: rgba(233,226,210,.16); }
+.xv-bar input { flex: 1; accent-color: #c8452f; min-width: 40px; }
+.lightbox { position: fixed; inset: 0; z-index: 50; background: rgba(5,4,3,.88); display: grid; place-items: center; padding: 24px; cursor: zoom-out; }
+.lightbox[hidden] { display: none; }
+.lightbox figure { margin: 0; max-width: min(1200px, 94vw); }
+.lightbox img { max-width: 100%; max-height: 80vh; display: block; margin: 0 auto; border-radius: 6px; }
+.lightbox figcaption { color: #cfc7b8; font-size: 13px; margin-top: 10px; text-align: center; }
+/* page frame: a fixed contents rail, a reading column, and the tour spanning wider */
+.wrap { display: block; max-width: 1560px; padding: 0 36px 0 272px; }
+nav.toc { position: fixed; left: 32px; top: 0; width: 200px; }
+nav.toc a.sub { padding-left: 24px; font-size: 11px; line-height: 1.75; }
+nav.toc a .tn { display: inline-block; width: 22px; color: var(--red); opacity: .8; }
+header.hero { padding: 28px 0 20px; margin-bottom: 0; border-bottom: 0; }
+header.hero h1 { margin: 10px 0 10px; }
+.step .spectrum { margin: 34px 0 16px; }
+.step ol.loop { padding-left: 20px; } .step ol.loop li { margin: 6px 0; }
+.step ol.loop li::marker { color: var(--red); font: 500 12px "IBM Plex Mono", monospace; }
+.pc { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 18px 0; }
+.pc > div { background: var(--panel); border-radius: 12px; padding: 12px 16px 6px; }
+.pc h4 { margin: 4px 0 6px !important; }
+.pc ul { padding-left: 16px; margin: 0 0 8px; } .pc li { font-size: 14px !important; }
+.figs.ba .ph { aspect-ratio: auto; position: relative; cursor: zoom-in; }
+.figs.ba img { height: auto; object-fit: contain; }
+.figs.ba { grid-template-columns: 1fr; }
+.figs .badge { position: absolute; top: 8px; left: 8px; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .12em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px; background: rgba(11,10,9,.78); color: #e9e2d2; backdrop-filter: blur(4px); }
+.figs .badge.now { background: #c8452f; color: #fff6ee; }
+.tour-steps header.hero { padding: 4px 0 0; }
+.tour-steps header.hero + .step { padding-top: 8vh; }
+main { padding-top: 16px; }
+main > :not(.tour):not(.lightbox) { max-width: 880px; }
+nav.toc { transition: transform .35s ease, opacity .35s; }
+nav.toc .brand { justify-content: space-between; }
+nav.toc .brand a.home { display: flex; align-items: center; gap: 10px; color: var(--ink); text-decoration: none; padding: 0; border: 0; }
+#tocClose { flex: none; margin: 0; padding: 0; width: 28px; height: 28px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgba(233,226,210,.06); color: var(--dim); cursor: pointer; letter-spacing: 0; }
+#tocClose:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#tocClose:hover { color: var(--ink); background: rgba(233,226,210,.12); }
+#tocOpen { position: fixed; left: 20px; top: 18px; z-index: 20; display: none; border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  background: rgba(20,18,16,.85); color: var(--ink); font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .06em; backdrop-filter: blur(8px); }
+body.toc-hidden nav.toc { transform: translateX(-110%); opacity: 0; pointer-events: none; }
+body.toc-hidden .wrap { padding-left: 36px; }
+body.toc-hidden #tocOpen { display: block; }
+.wrap { transition: padding-left .35s ease; }
+@media (max-width: 1180px) { #tocOpen, #tocClose { display: none !important; } }
+@media (max-width: 1180px) { nav.toc { display: none; } .wrap { padding: 0 28px; } }
+@media (max-width: 900px) {
+  .tour { grid-template-columns: 1fr; gap: 0; margin-left: -28px; margin-right: -28px; }
+  .tour-stage { grid-column: 1; grid-row: 1; top: 0; height: 46vh; z-index: 5; border-radius: 0; border-width: 0 0 1px; }
+  .tour-steps { grid-row: 2; padding: 0 28px; }
+  .step { min-height: 70vh; padding: 8vh 0; }
+  .xv-bar input { display: none; } .xv-bar { width: auto; } .xv-bar button { min-width: 0; padding: 5px 12px; }
+}
+@media (max-width: 860px) { .wrap { grid-template-columns: 1fr; gap: 0; } nav.toc { display: none; } main { padding-top: 16px; } }
+@media (max-width: 480px) { .wrap { padding: 0 16px; } h2 { font-size: 26px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+<button id="tocOpen" type="button" aria-label="Show contents" aria-controls="toc">☰ Contents</button>
+<nav class="toc" id="toc" aria-label="Contents">
+  <div class="brand"><a href="/" class="home"><svg width="18" height="18" viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="#c8452f"/><circle cx="20" cy="20" r="3.4" fill="none" stroke="#f6f0e4" stroke-width="1.2"/></svg>PLATEN</a><button id="tocClose" type="button" aria-label="Hide contents"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M7.5 2.5 4 6l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+  <a href="#t-whole"><span class="tn">00</span>A thermal typewriter that never existed</a>
+  <a href="#t-world"><span class="tn">01</span>A world, not an interface</a>
+  <a href="#t-body"><span class="tn">02</span>One body, not an assembly</a>
+  <a href="#t-deck"><span class="tn">03</span>Printed, not modelled</a>
+  <a href="#t-lcd"><span class="tn">04</span>Line memory</a>
+  <a href="#t-ruler"><span class="tn">05</span>The frosted ruler</a>
+  <a href="#t-ways"><span class="tn">06</span>Four ways to put a letter on paper</a>
+  <a href="#t-head"><span class="tn">07</span>The thermal head</a>
+  <a href="#t-cassette"><span class="tn">08</span>Film ribbon &amp; cassette</a>
+  <a href="#t-type"><span class="tn">09</span>Courier, the old way</a>
+  <a href="#t-erase"><span class="tn">10</span>Type and erase</a>
+  <a href="#t-platen"><span class="tn">11</span>The platen</a>
+  <a href="#t-paper"><span class="tn">12</span>Roll, fanfold, card</a>
+  <a href="#t-tear"><span class="tn">13</span>Letting go</a>
+  <a href="#t-desk"><span class="tn">14</span>A desk that never ends</a>
+  <a href="#t-read"><span class="tn">15</span>Pick it up</a>
+  <a href="#t-mark"><span class="tn">16</span>Mark it up</a>
+  <a href="#t-bin"><span class="tn">17</span>The bin</a>
+  <a href="#t-tidy"><span class="tn">18</span>Tidy up</a>
+  <a href="#t-left"><span class="tn">19</span>What I left out</a>
+  <a href="#sources"><span class="tn">··</span>Sources</a>
+</nav>
+
+<main>
+<section class="tour" aria-label="Guided exploded view">
+  <div class="tour-stage" id="xvStage">
+    <canvas id="xvCanvas" aria-label="Interactive exploded view of the Platen machine"></canvas>
+    <div class="xv-marks" id="xvMarks"></div>
+    <div class="xv-tip" id="xvTip"></div>
+    <div class="xv-chip" id="xvChip">The whole machine</div>
+    <div class="xv-bar"><button type="button" id="xvToggle">Explode</button><input type="range" id="xvRange" min="0" max="1000" value="0" aria-label="Explode amount"><button type="button" id="xvReset">Reframe</button></div>
+    <div class="xv-load" id="xvLoad">loading the machine…</div>
+  </div>
+
+  <div class="tour-steps">
+<header class="hero">
+  <div class="eyebrow">How it works</div>
+  <h1>Platen</h1>
+  <p class="lede">A thermal typewriter that never existed, taken apart one piece at a time. I built it with Claude Opus 5.5 by directing: I brought the references and made the calls, and Claude did the research and wrote the code. Scroll, and the machine follows.</p>
+  <div class="meta">Saleh Kayyali · <a href="/">Open Platen</a> · <a href="https://github.com/mskayyali/platenwriter">Source on GitHub</a> · drag the machine to look around</div>
+</header>
+
+
+  <!-- 00 -->
+  <article class="step" id="t-whole" data-explode="0" data-dir="1,.62,1.35">
+    <div class="k">00 · The whole machine</div>
+    <h3>A thermal typewriter that never existed</h3>
+    <p class="lead">I’d been obsessed with thermal typewriters for a while and wanted to make one. Not a copy of a real model, more like a game environment built around an ordinary writing app.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Panasonic_Thermalwriter_12,_Blijdorp,_Rotterdam_(2020)_01.jpg?width=720" alt="Panasonic Thermalwriter 12. The paper rises out of a covered slot, the LCD sits above the keys, and the whole machine is one shell."></div><figcaption>Panasonic Thermalwriter 12.<span class="credit">Donald Trung Quoc Don · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Canon_Typestar_1986_-_Aksharam_Museum_Kottayam.jpg?width=720" alt="Canon Typestar (1986). A thermal head, no hammers, and a quiet whine instead of strikes. It&#x27;s the model for our mechanism and our sound."></div><figcaption>Canon Typestar (1986).<span class="credit">Akhilan · Aksharam Museum · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <p>It mixes Canon’s Typestar, Panasonic’s Thermalwriters and the line display of Canon’s AP-1500. A line waits on the display, and when you press Return it’s printed for good.</p>
+    <p>It was also a test of building by direction. With Claude Opus 5.5 I worked in a loop: share references (photos, a recording of a real Typestar), ask for research first, react to each version, and decide what to cut. The chapters below are those decisions.</p>
+    <aside class="choice"><b>The rule</b> Be physical where it gives feedback or meaning. Keep everything else simple.</aside>
+  </article>
+
+  <!-- 01 -->
+  <article class="step" id="t-world" data-desk="scene" data-explode="0" data-dir=".55,.75,1.2">
+    <div class="k">01 · The idea</div>
+    <h3>A world, not an interface</h3>
+    <p class="lead">Games make a space feel alive with light, sound and objects that react. Productivity apps rarely try. I wanted a writing tool designed more like a game level than a settings screen.</p>
+    <p>In games, an interface that lives inside the world is called diegetic, like the health meter built into the suit in Dead Space. Here the display, the printed labels, the paper and the bin are the interface. Place helps memory too: in Microsoft’s Data Mountain study (1998), people found saved pages faster when they had arranged them in space themselves.</p>
+    <div class="pc">
+      <div><h4>What it gives</h4>
+        <ul>
+          <li>You remember where things are, like on a real desk.</li>
+          <li>Sound and motion confirm actions, so there are fewer messages.</li>
+          <li>Permanence makes you think before committing a line.</li>
+        </ul></div>
+      <div><h4>What it costs</h4>
+        <ul>
+          <li>It’s slower than a text box, and it needs a decent graphics chip. Phones are out.</li>
+          <li>3D and small printed labels are harder for screen readers and low vision.</li>
+          <li>Search and sync get harder when notes are objects.</li>
+          <li>The novelty fades, so every detail has to be useful.</li>
+        </ul></div>
+    </div>
+  </article>
+
+  <!-- 02 -->
+  <article class="step" id="t-body" data-focus="front,rear,caps,well" data-explode=".8" data-dir="1,.75,1.2">
+    <div class="k">02 · Body · parts 1–4</div>
+    <h3>One body, not an assembly</h3>
+    <p class="lead">One continuous shape, from the lip at the front to the raised cover at the back, with solid caps at the ends.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Canon_qs100_electric_typewriter_01.JPG?width=720" alt="Canon QS100. A single moulded top in one colour, with the mechanism hidden beneath a smoked hood."></div><figcaption>Canon QS100.<span class="credit">Joxemai · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Panasonic_KX-E508_electric_typewriter.jpg?width=720" alt="Panasonic KX-E508. The same idea: the keyboard, deck and cover read as one continuous object."></div><figcaption>Panasonic KX-E508.<span class="credit">Ross Griff · CC BY 2.0</span></figcaption></figure>
+    </div>
+    <div class="figs ba"><figure><div class="ph"><img loading="lazy" src="./img/before-seam.webp" alt="Before: separate blocks, with a seam cutting through the name."><span class="badge">Before</span></div><figcaption>Before: separate blocks, with a seam cutting through the name.</figcaption></figure></div>
+    <aside class="choice"><b>Direction</b> The display used to sit in its own box and looked stuck on. I asked for a single top shell over the mechanism, with the Typestar 7 as the reference. No screws, seams or vents.</aside>
+  </article>
+
+  <!-- 03 -->
+  <article class="step" id="t-deck" data-focus="front,legend,paperSw,space,dial" data-explode=".7" data-dir=".35,1,1.1">
+    <div class="k">03 · Controls · parts 5, 7–9</div>
+    <h3>Printed, not modelled</h3>
+    <p class="lead">The shortcuts are printed on the body, and three controls move: the paper switch (Alt P), the line-space lever (Alt S) and the width dial (Alt W).</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Carriagereturn.jpg?width=720" alt="A Brother electric typewriter&#x27;s line-spacing lever, with its settings printed on the body beside it."></div><figcaption>Line-spacing settings printed on a Brother typewriter.<span class="credit">Grutness · GFDL</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Panasonic_Thermalwriter_12,_Blijdorp,_Rotterdam_(2020)_03.jpg?width=720" alt="Labels printed around the Thermalwriter’s display."></div><figcaption>Labels printed around the Thermalwriter’s display.<span class="credit">Donald Trung Quoc Don · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> I wanted the instructions on the machine, not floating on screen. Modelling every key would have you aiming at buttons.</aside>
+  </article>
+
+  <!-- 04 -->
+  <article class="step" id="t-lcd" data-focus="lcd" data-explode=".7" data-dir=".15,1,.9">
+    <div class="k">04 · Display · part 6</div>
+    <h3>Line memory</h3>
+    <p class="lead">A line waits here until you press Return, and you can edit it freely. The idea comes from the AP-1500, which held 31 characters. The dots follow the 5×7 grid of old LCD chips.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/2x8_amber_HD44780_LCD_CIMG0416.JPG?width=720" alt="A character LCD built on the HD44780 controller. Each character is a 5×7 grid of dots."></div><figcaption>A character LCD built on the HD44780 controller.<span class="credit">MikroLogika · CC BY-SA 3.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Charset.gif?width=720" alt="The HD44780 character ROM. Our display&#x27;s font follows the same 5×7 layout."></div><figcaption>The HD44780 character ROM.<span class="credit">Hitachi · public domain</span></figcaption></figure>
+    </div>
+    <div class="figs ba"><figure><div class="ph"><img loading="lazy" src="./img/before-lcd.webp" alt="Before: labels crossing the display’s edge, and a 1½ that didn’t fit its cell."><span class="badge">Before</span></div><figcaption>Before: labels crossing the display’s edge, and a 1½ that didn’t fit its cell.</figcaption></figure></div>
+    <aside class="choice"><b>Direction</b> The real machine showed a column number, which meant nothing to me, so this one shows how many characters are left.</aside>
+  </article>
+
+  <!-- 05 -->
+  <article class="step" id="t-ruler" data-focus="ruler" data-explode=".7" data-dir=".2,1,.75">
+    <div class="k">05 · Print mechanism · part 10</div>
+    <h3>The frosted ruler</h3>
+    <p class="lead">A smoked plate over the print line. The head moves underneath, blurred, with the column scale on top.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Panasonic_Thermalwriter_12,_Blijdorp,_Rotterdam_(2020)_04.jpg?width=720" alt="The Thermalwriter&#x27;s clear paper guide with its printed scale, the direct reference for ours."></div><figcaption>The Thermalwriter’s clear paper guide.<span class="credit">Donald Trung Quoc Don · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Panasonic_Thermalwriter_12,_Blijdorp,_Rotterdam_(2020)_02.jpg?width=720" alt="The same plate from above."></div><figcaption>The same plate from above.<span class="credit">Donald Trung Quoc Don · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> I asked for about 60% blur. At full blur the new line vanished, and with none the plate looked like a hole.</aside>
+  </article>
+
+  <!-- 06 -->
+  <article class="step" id="t-ways" data-focus="head,platen" data-explode=".45" data-dir="1,.35,1">
+    <div class="k">06 · Mechanisms</div>
+    <h3>Four ways to put a letter on paper</h3>
+    <p class="lead">Typebars, type balls, daisy wheels and thermal heads each print differently, and each changes how the machine sounds and looks.</p>
+    <div class="figs four">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Write_mechanic_of_Consul_typewriter_in_T%C5%99eb%C3%AD%C4%8D,_T%C5%99eb%C3%AD%C4%8D_District.jpg?width=720" alt="Typebar. A fan of arms, each tipped with a slug, swings up into an inked ribbon."></div><figcaption><b>Typebar.</b><span class="credit">Jiří Sedláček · CC BY 3.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Impact_Print_Elements.jpg?width=720" alt="Type ball and daisy wheel. The carriage stays still, and a small element moves and spins along the line instead."></div><figcaption><b>Type ball and daisy wheel.</b><span class="credit">Jamie Cox · CC BY 2.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Diablo_D-25_print-head.jpg?width=720" alt="Daisy wheel head. Petals carry glyphs, and a hammer strikes the right one through the ribbon."></div><figcaption><b>Daisy wheel head.</b><span class="credit">Chiffre01 · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Thermal_printhead_macro.jpg?width=720" alt="Thermal head. A row of tiny heaters, pulsed as the head moves. There are no strikes at all."></div><figcaption><b>Thermal head.</b><span class="credit">Gravis · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <div class="tablewrap"><table class="mini">
+      <tr><th></th><th>Sound</th><th>From the seat</th><th>For Platen</th></tr>
+      <tr><td>Typebar</td><td>Strike and bell</td><td>A busy fan of arms</td><td>Needs a key per bar, which drags in a 3D keyboard</td></tr>
+      <tr><td>Type ball</td><td>A fast clatter</td><td>Hidden in the carriage</td><td>Iconic, but invisible while working</td></tr>
+      <tr><td>Daisy wheel</td><td>A hammered rattle</td><td>Wheel and hammer in the way</td><td>Our first build. It hid the letter being printed.</td></tr>
+      <tr><td>Thermal</td><td>A soft whine and a clack</td><td>A small head and its heat</td><td>Reads instantly, quiet, and the letter appears as the head passes</td></tr>
+    </table></div>
+    <div class="figs ba"><figure><div class="ph"><img loading="lazy" src="./img/before-daisywheel.webp" alt="Before: the first mechanism, a daisy wheel."><span class="badge">Before</span></div><figcaption>Before: the first mechanism, a daisy wheel.</figcaption></figure></div>
+    <aside class="choice"><b>Direction</b> The daisy wheel was accurate, but from the typing position it hid the letter being printed. A thermal head is small enough that you watch the ink instead.</aside>
+  </article>
+
+  <!-- 07 -->
+  <article class="step" id="t-head" data-focus="head" data-explode=".7" data-dir="1,.45,1.1">
+    <div class="k">07 · Print mechanism · part 11</div>
+    <h3>The thermal head</h3>
+    <p class="lead">A ceramic strip with 26 tiny heaters, as on the Typestar 7. It presses on, heats each letter as it crosses the line, then lifts and returns.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Thermal_paper.jpg?width=720" alt="Thermal paper darkens wherever it is heated. That is all a thermal head does, in dots."></div><figcaption>Thermal paper darkens wherever it is heated.<span class="credit">IIVQ · Tijmen Stam · CC BY-SA 3.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Canon_Pocketronic_Thermal_Printhead_Close_up.jpg?width=720" alt="Canon&#x27;s Pocketronic (1970) used an early thermal head, the ancestor of the Typestar&#x27;s."></div><figcaption>Canon Pocketronic’s thermal head (1970).<span class="credit">Mister rf · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <p>It holds heat, too. After a pause the first letters print lighter, and a fast run prints a little darker, so your rhythm shows on the page.</p>
+    <aside class="choice"><b>Direction</b> The sounds are synthesized and tuned against a recording of a Canon Typestar 220-II. The first version sounded like a toy until we matched it to the recording.</aside>
+  </article>
+
+  <!-- 08 -->
+  <article class="step" id="t-cassette" data-focus="cassette" data-explode=".8" data-dir=".6,.7,1.2">
+    <div class="k">08 · Print mechanism · part 12</div>
+    <h3>Film ribbon &amp; cassette</h3>
+    <p class="lead">An ink film runs from the cassette, around the head and back, and the reels turn as it’s used.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Typewriter_ribbon_of_polymer_tape-4247.jpg?width=720" alt="An electronic typewriter&#x27;s film ribbon cassette, opened: two reels and the film path between them."></div><figcaption>A film ribbon cassette, opened.<span class="credit">Raimond Spekking · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/IBM_Wheelwriter_15_Series_II_(20872651558).jpg?width=720" alt="IBM Wheelwriter. The ribbon cassette rides with the print element, so the whole carriage moves as one."></div><figcaption>IBM Wheelwriter.<span class="credit">mliu92 · CC BY-SA 2.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> Taken from the Typestar 5. It helps you follow the carriage, since the head is tiny, and its red pointer reads the scale.</aside>
+  </article>
+
+  <!-- 09 -->
+  <article class="step" id="t-type" data-focus="paper" data-explode=".25" data-dir="0,.25,1">
+    <div class="k">09 · Type</div>
+    <h3>Courier, the old way</h3>
+    <p class="lead">12-point Courier at 10 characters per inch, each letter slightly off and saved that way. Bold and underline are a second pass of the head, as a typist would do it.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/IBM_Courier.png?width=720" alt="IBM&#x27;s Courier (1955), designed for typewriters."></div><figcaption>IBM's Courier (1955), designed for typewriters.<span class="credit">Adrio · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Courier_Prime.png?width=720" alt="Courier Prime (2013), used here."></div><figcaption>Courier Prime (2013), used here.<span class="credit">Adrio · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Daisy_wheel_output_samples_1980-81.jpg?width=720" alt="Daisy-wheel output from 1980–81. Faithful type still shows small irregularities."></div><figcaption>Daisy-wheel output from 1980–81.<span class="credit">Pointillist · CC BY-SA 3.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> A font bug once printed some lines in a thinner face, and it looked like real ink trouble. We fixed it, then added one real flaw on purpose: head temperature.</aside>
+  </article>
+
+  <!-- 10 -->
+  <article class="step" id="t-erase" data-focus="head,cassette,paper" data-explode=".5" data-dir=".9,.5,1.2">
+    <div class="k">10 · Correction</div>
+    <h3>Type and erase</h3>
+    <p class="lead">In line mode you fix things on the display. In character mode, backspace lifts the letter off the paper with correction film, bold and underline included.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Triumph-Adler_Gabriele_100_DS-9613.jpg?width=720" alt="A Triumph-Adler Gabriele 100 carriage and its correction-tape spool."></div><figcaption>A Triumph-Adler Gabriele 100 carriage and its correction-tape spool.<span class="credit">Raimond Spekking · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Brother_660TR_Correction.JPG?width=720" alt="Brother 660TR &quot;Correction&quot;. A correction key made a selling point of these machines."></div><figcaption>Brother 660TR "Correction".<span class="credit">Freediving-beava · CC BY-SA 3.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> Like real correction tape, it leaves a faint trace. I kept it, because printing here is meant to be permanent.</aside>
+  </article>
+
+  <!-- 11 -->
+  <article class="step" id="t-platen" data-focus="platen,knobs" data-explode=".7" data-dir="1,.3,.8">
+    <div class="k">11 · Print mechanism · parts 13–14</div>
+    <h3>The platen</h3>
+    <p class="lead">The rubber roller that holds the paper. Typewriters have had one since the 1870s, and the project is named after it.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Adler_universal_typewriter_(Science_Museum).jpg?width=720" alt="Adler Universal. The platen and its knobs dominate the carriage of a manual machine."></div><figcaption>Adler Universal.<span class="credit">Science Museum Group · CC BY 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Erika_3006.jpg?width=720" alt="Erika 3006. Knurled platen knobs at each end are for feeding the paper by hand."></div><figcaption>Erika 3006.<span class="credit">Piotr Doroszewski · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> Its knobs are the one old-typewriter part I left fully in view, and the red roller became the logo.</aside>
+  </article>
+
+  <!-- 12 -->
+  <article class="step" id="t-paper" data-focus="paper,support,guides" data-explode=".7" data-dir="1,.45,.5">
+    <div class="k">12 · Paper path · parts 15–17</div>
+    <h3>Roll, fanfold, card</h3>
+    <p class="lead">Paper comes up from below, wraps the platen past the head and leans back on a support, so printed lines move up and away from you.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Thermal_paper_rolls_with_red_alert_line.jpg?width=720" alt="Thermal rolls. The red stripe warns that a roll is running out; ours tears itself off at the end."></div><figcaption>Thermal rolls.<span class="credit">Acheolg · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Endlospapier_fan-fold_paper.jpg?width=720" alt="Fanfold paper with tractor holes."></div><figcaption>Fanfold paper with tractor holes.<span class="credit">Kungfuman · CC BY-SA 3.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Green_Bar_Computer_Paper_(6507071701).png?width=720" alt="Green-bar paper. The bands help the eye follow long rows; ours are kept faint."></div><figcaption>Green-bar paper.<span class="credit">David Swart · CC BY 2.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Index_card,_3_by_5_inch.agr.jpg?width=720" alt="A ruled 3×5 index card. Ours is 5×3, fed one at a time and ejected whole."></div><figcaption>A ruled 3×5 index card.<span class="credit">ArnoldReinhold · CC BY-SA 4.0</span></figcaption></figure>
+    </div>
+    <div class="diagram">
+<svg viewBox="0 0 760 360" role="img" aria-label="Side view of the paper path around the platen">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="red"/></marker></defs>
+  <line x1="40" y1="300" x2="720" y2="300" class="stdim"/>
+  <text x="44" y="320" class="dim" font-size="11">back of machine</text>
+  <text x="600" y="320" class="dim" font-size="11">typist →</text>
+  <!-- support, leaning back 24 degrees -->
+  <line x1="338" y1="150" x2="286" y2="32" class="stdim" stroke-width="12" stroke-linecap="round" opacity=".5"/>
+  <!-- platen -->
+  <circle cx="300" cy="210" r="70" class="st" stroke-width="1.5"/>
+  <circle cx="300" cy="210" r="10" class="stdim" stroke-width="1.5"/>
+  <text x="300" y="190" font-size="11" text-anchor="middle">platen</text>
+  <text x="300" y="236" class="dim" font-size="10" text-anchor="middle">R = 0.78″</text>
+  <!-- paper: enters under the platen, wraps the front, leaves at 64 degrees, rides the support -->
+  <path d="M 120 284 L 300 284 A 74 74 0 0 0 332.4 143.5 C 326 128 300 70 282 30" class="redst" stroke-width="2.4"/>
+  <path d="M 190 284 L 220 284" class="redst" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="60" y="270" class="dim" font-size="10">roll enters (PHI_IN = −158°)</text>
+  <!-- head at the front, PHI_P = 4 degrees -->
+  <rect x="378" y="190" width="30" height="30" rx="4" class="st" stroke-width="1.5"/>
+  <line x1="400" y1="205" x2="470" y2="205" class="stdim"/>
+  <text x="476" y="202" font-size="11">thermal head</text>
+  <text x="476" y="218" class="dim" font-size="10">prints at PHI_P = 4°</text>
+  <!-- ruler just above the print line -->
+  <rect x="372" y="172" width="44" height="7" rx="2" fill="none" stroke="var(--dim)" stroke-dasharray="3 2"/>
+  <line x1="416" y1="175" x2="470" y2="165" class="stdim"/>
+  <text x="476" y="168" class="dim" font-size="10">frosted ruler</text>
+  <!-- exit and support -->
+  <line x1="300" y1="80" x2="470" y2="80" class="stdim"/>
+  <text x="476" y="77" font-size="11">paper support</text>
+  <text x="476" y="93" class="dim" font-size="10">LEAN = 24° · paper leaves at PHI_E = 64°</text>
+  <path d="M 276 60 L 262 28" class="redst" stroke-width="1.5" marker-end="url(#ar)"/>
+  <text x="206" y="50" class="red" font-size="11">feed</text>
+  <text x="40" y="346" font-size="12">sample(d) → { point, tangent }: under the platen → around the front → free span → support</text>
+</svg>
+</div>
+    <aside class="choice"><b>Direction</b> Fanfold came first, then index cards, whose ruled lines follow the line spacing. Unlike a manual typewriter, only the small head moves, not the whole carriage.</aside>
+  </article>
+
+  <!-- 13 -->
+  <article class="step" id="t-tear" data-focus="paper" data-explode="1" data-dir=".2,.8,1">
+    <div class="k">13 · Tear</div>
+    <h3>Letting go</h3>
+    <p class="lead">Ctrl X tears the page off and it falls to the desk. Tearing is the only way to save.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Kettingpapier.jpg?width=720" alt="Perforated continuous paper. On fanfold the tear follows the perforation instead of a jagged edge."></div><figcaption>Perforated continuous paper.<span class="credit">Agaath · CC BY-SA 4.0</span></figcaption></figure>
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Perforation_types_for_continious_form_paper.gif?width=720" alt="Perforation patterns for continuous forms."></div><figcaption>Perforation patterns for continuous forms.<span class="credit">Public domain</span></figcaption></figure>
+    </div>
+    <aside class="choice"><b>Direction</b> Torn pages used to slide under the machine. Now they clear it, and the camera glances at the desk so you see where each one lands.</aside>
+  </article>
+
+  <!-- 14 -->
+  <article class="step" id="t-desk" data-desk="wide" data-explode="0" data-dir=".2,1.1,.75">
+    <div class="k">14 · The desk</div>
+    <h3>A desk that never ends</h3>
+    <p class="lead">Pages collect on a desk with no edges, and stay where you leave them. Drag empty space to move around. Scrolling steps between four views, from the paper up close to an overhead view of every page.</p>
+    <aside class="choice"><b>Direction</b> A dragged page used to lag behind the cursor because the camera swayed with the mouse. Turning the sway off on the desk fixed it.</aside>
+  </article>
+
+  <!-- 15 -->
+  <article class="step" id="t-read" data-desk="read" data-explode="0" data-dir="0,.3,1">
+    <div class="k">15 · The desk</div>
+    <h3>Pick it up</h3>
+    <p class="lead">Click a page to hold it up and read. From there you can copy the text, save a PNG with transparent torn edges, or throw it away.</p>
+    <aside class="choice"><b>Direction</b> Held pages used to be slightly see-through. They’re drawn solid now, and the toolbar moves up so it doesn’t cover the text.</aside>
+  </article>
+
+  <!-- 16 -->
+  <article class="step" id="t-mark" data-desk="mark" data-explode="0" data-dir=".1,1,.6">
+    <div class="k">16 · The desk</div>
+    <h3>Mark it up</h3>
+    <p class="lead">Press M and draw on any page. V goes back to moving, Ctrl Z undoes.</p>
+    <aside class="choice"><b>Direction</b> One size and one red-orange that suits the paper. It sits under the type like felt tip.</aside>
+  </article>
+
+  <!-- 17 -->
+  <article class="step" id="t-bin" data-desk="bin" data-explode="0" data-dir=".75,.9,1">
+    <div class="k">17 · The desk</div>
+    <h3>The bin</h3>
+    <p class="lead">Drop a page on the bin and it crumples in. Click a ball to take it back. Only Empty bin and Clear desk delete for good, and both ask first.</p>
+    <aside class="choice"><b>Direction</b> The first bin was huge and restored pages passed through its sides. It’s smaller now, and the camera no longer jumps away when you clear the desk.</aside>
+  </article>
+
+  <!-- 18 -->
+  <article class="step" id="t-tidy" data-desk="grid" data-explode="0" data-dir=".1,1.2,.55">
+    <div class="k">18 · The desk</div>
+    <h3>Tidy up</h3>
+    <p class="lead">Alt T lays every page out in a grid, oldest first, one row per day.</p>
+    <aside class="choice"><b>Direction</b> The first version made a neat stack, which hid everything but the top page.</aside>
+  </article>
+
+  <!-- 19 -->
+  <article class="step" id="t-left" data-explode="1" data-dir="1,.9,1.35">
+    <div class="k">19 · Everything else</div>
+    <h3>What I left out</h3>
+    <p class="lead">A 3D keyboard (you have one), the paper bail, screws and vents, paper jams, and folding pages, which I tried and removed.</p>
+    <div class="figs">
+      <figure><div class="ph"><img loading="lazy" src="https://commons.wikimedia.org/wiki/Special:FilePath/Astrohaus_Freewrite_Smart_Typewriter_(Grayscale).jpg?width=720" alt="Freewrite. A modern writing machine that went the other way: real hardware, no paper, so committing a line happens only on e-ink."></div><figcaption>Freewrite.<span class="credit">⌐ꬲ. · CC BY-SA 2.0</span></figcaption></figure>
+    </div>
+  </article>
+
+  </div>
+</section>
+<div class="lightbox" id="lb" hidden><figure><img alt=""><figcaption></figcaption></figure></div>
+
+<!-- ============================================================ -->
+<h2 id="sources">Sources</h2>
+<h3>Machines</h3>
+<ul>
+  <li>etzone.org, Canon AP-1500 specifications (31-character LCD, ~16 cps)</li>
+  <li><a href="https://joevancleave.blogspot.com/2019/03/canon-typestar-4-thermal-typewriter.html">Joe Van Cleave, Canon Typestar 4 thermal typewriter</a></li>
+  <li><a href="https://ajd.sh/posts/canon-typestar-part-1/">Alex Dueppen, Canon Typestar teardown (26-dot head)</a></li>
+  <li>US Patents 4,388,007 and 4,247,210 (thermal typewriter mechanisms)</li>
+  <li>A recording of a Canon Typestar 220-II printing and returning (the reference for every printer sound)</li>
+</ul>
+<h3>Hybrid skeuomorphism</h3>
+<ul>
+  <li><a href="https://www.sciencedirect.com/science/article/abs/pii/S1071581920300379">"Smash the dichotomy": realism as a continuum, IJHCS 2020</a></li>
+  <li><a href="https://www.flatisbad.com/publications/Bollini-CdC16.pdf">Bollini, From skeuomorphism to Material Design and back</a></li>
+  <li><a href="https://www.flatisbad.com/publications/Spiliotopoulos-MultimodalTechInteract18.pdf">Spiliotopoulos et al., flat vs. skeuomorphic affordances, 2018</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Flat_design">Wikipedia, Flat design (Flat 2.0)</a></li>
+  <li><a href="https://99designs.com/blog/trends/skeuomorphism-flat-design-material-design/">99designs, Skeuomorphism vs. flat vs. Material</a></li>
+  <li><a href="https://medium.com/@Shirupam/the-evolution-of-flat-design-from-skeuomorphism-to-minimalism-8bdad63bc3a3">The evolution of flat design</a></li>
+  <li><a href="https://www.uxmatters.com/mt/archives/2024/11/the-renaissance-of-skeuomorphic-design-in-modern-user-experiences-bridging-the-digital-and-the-physi.php">UXmatters, The renaissance of skeuomorphic design (2024)</a></li>
+  <li><a href="https://www.justinmind.com/ui-design/skeuomorphic">Justinmind, Skeuomorphism in UI design</a></li>
+</ul>
+<h3>Games and space</h3>
+<ul>
+  <li><a href="https://www.microsoft.com/en-us/research/publication/data-mountain-using-spatial-memory-for-document-management/">Robertson et al., Data Mountain: using spatial memory for document management (UIST 1998)</a></li>
+  <li><a href="https://www.researchgate.net/publication/277202228_Beyond_the_HUD_-_User_Interfaces_for_Increased_Player_Immersion_in_FPS_Games">Fagerholt &amp; Lorentzon, Beyond the HUD: diegetic, meta, spatial and non-diegetic interfaces (2009)</a></li>
+  <li><a href="https://en.wikipedia.org/wiki/Game_feel">Game feel, after Steve Swink’s Game Feel (2008)</a></li>
+</ul>
+<h3>Printing imperfections</h3>
+<ul>
+  <li><a href="https://labelblanks.com/blogs/articles/common-issues-with-thermal-transfer-ribbons-and-how-to-fix-them">Label Blanks, Common issues with thermal transfer ribbons</a></li>
+  <li><a href="https://www.thermalprintersupplies.com/blog/why-your-barcodes-are-faint-a-guide-to-heat-speed-and-pressure-settings/">Thermal Printer Supplies, Heat, speed and pressure</a></li>
+  <li><a href="https://help.loftware.com/lps-kb/content/printing/tips_on_thermal_transfer_ribbon_wrinkles_that_can_cause_unreadable_barcodes.htm?TocPath=ARTICLES%7CPrinting%7C_____55">Loftware, Thermal transfer ribbon wrinkles</a></li>
+  <li><a href="https://www.printerjournal.com/guides/barcode-printer/dead-pixels-or-dirt-diagnosing-white-lines-on-thermal-printer-labels.html">Printer Journal, Dead pixels or dirt</a></li>
+</ul>
+<h3>Images</h3>
+<p>All photographs are from Wikimedia Commons under the licences credited in each caption.</p>
+
+</main>
+</div>
+<script>
+  // the contents rail folds away; the choice is remembered on this device
+  const hideToc = on => { document.body.classList.toggle('toc-hidden', on); try { localStorage.setItem('platen.guide.toc', on ? 'hidden' : 'shown'); } catch (e) { } setTimeout(() => dispatchEvent(new Event('resize')), 400); };
+  try { if (localStorage.getItem('platen.guide.toc') === 'hidden') document.body.classList.add('toc-hidden'); } catch (e) { }
+  document.getElementById('tocClose').onclick = () => hideToc(true);
+  document.getElementById('tocOpen').onclick = () => hideToc(false);
+  const links = [...document.querySelectorAll('nav.toc a:not(.home)')];
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id)); }), { rootMargin: '-10% 0px -80% 0px' });
+  document.querySelectorAll('h2[id], .step[id]').forEach(h => io.observe(h));
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+// ---------------------------------------------------------------- helpers (as in src/util.js)
+const TAU = Math.PI * 2, deg = d => d * Math.PI / 180;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const easeInOut = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const mkCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = Math.round(w); c.height = Math.round(h); return c; };
+const ROM = {" ": "00000000000000", "!": "04040404000004", "\"": "0A0A0A00000000", "#": "0A0A1F0A1F0A0A", "$": "040F140E051E04", "%": "18190204081303", "&": "0C12140815120D", "'": "0C040800000000", "(": "02040808080402", ")": "08040202020408", "*": "0004150E150400", "+": "0004041F040400", ",": "000000000C0408", "-": "0000001F000000", ".": "00000000000C0C", "/": "00010204081000", "0": "0E11131519110E", "1": "040C040404040E", "2": "0E11010204081F", "3": "1F02040201110E", "4": "02060A121F0202", "5": "1F101E0101110E", "6": "0608101E11110E", "7": "1F010204080808", "8": "0E11110E11110E", "9": "0E11110F01020C", ":": "000C0C000C0C00", ";": "000C0C000C0408", "<": "02040810080402", "=": "00001F001F0000", ">": "08040201020408", "?": "0E110102040004", "@": "0E11010D15150E", "A": "0E1111111F1111", "B": "1E11111E11111E", "C": "0E11101010110E", "D": "1C12111111121C", "E": "1F10101E10101F", "F": "1F10101E101010", "G": "0E11101711110F", "H": "1111111F111111", "I": "0E04040404040E", "J": "0702020202120C", "K": "11121418141211", "L": "1010101010101F", "M": "111B1515111111", "N": "11111915131111", "O": "0E11111111110E", "P": "1E11111E101010", "Q": "0E11111115120D", "R": "1E11111E141211", "S": "0F10100E01011E", "T": "1F040404040404", "U": "1111111111110E", "V": "11111111110A04", "W": "1111111515150A", "X": "11110A040A1111", "Y": "1111110A040404", "Z": "1F01020408101F", "[": "0E08080808080E", "\\\\": "00100804020100", "]": "0E02020202020E", "^": "040A1100000000", "_": "0000000000001F", "`": "08040200000000", "a": "00000E010F110F", "b": "1010161911111E", "c": "00000E1010110E", "d": "01010D1311110F", "e": "00000E111F100E", "f": "0609081C080808", "g": "000F11110F010E", "h": "10101619111111", "i": "04000C0404040E", "j": "0200060202120C", "k": "10101214181412", "l": "0C04040404040E", "m": "00001A15151111", "n": "00001619111111", "o": "00000E1111110E", "p": "00001E111E1010", "q": "00000D130F0101", "r": "00001619101010", "s": "00000E100E011E", "t": "08081C08080906", "u": "0000111111130D", "v": "00001111110A04", "w": "0000111115150A", "x": "0000110A040A11", "y": "000011110F010E", "z": "00001F0204081F", "{": "02040408040402", "|": "04040404040404", "}": "08040402040408", "~": "00000815020000", "½": "101112040E1207", "■": "1F1F1F1F1F1F1F", "▸": "080C0E0F0E0C08", "◂": "02060E1E0E0602"};
+const romGlyph = ch => { const h = ROM[ch] || ROM['■']; const r = []; for (let i = 0; i < 7; i++) r.push(parseInt(h.substr(i * 2, 2), 16)); return r; };
+
+// ---------------------------------------------------------------- the machine's real dimensions (src/main.js)
+const R = .78, RP = R + .012, PITCH = .1, DESK_Y = -2.9;
+const PHI_P = deg(4), PHI_E = deg(64), PHI_IN = deg(-158), LEAN = deg(24);
+const PRINT_Y = RP * Math.sin(PHI_P), PRINT_Z = RP * Math.cos(PHI_P);
+const U_EXIT = (PHI_E - PHI_P) * RP;
+const GUIDE_TOP = new THREE.Vector3(0, PRINT_Y + .03, PRINT_Z + .09), GUIDE_LEAN = deg(60), GUIDE_H = 1.25;
+const RULER_FRONT = { y: GUIDE_TOP.y - GUIDE_H * Math.cos(GUIDE_LEAN), z: GUIDE_TOP.z + GUIDE_H * Math.sin(GUIDE_LEAN) };
+const DECK_FRONT = { y: -1.96, z: 5.45 };
+const deckY = z => RULER_FRONT.y + (z - RULER_FRONT.z) * (DECK_FRONT.y - RULER_FRONT.y) / (DECK_FRONT.z - RULER_FRONT.z);
+const DECK_TILT = Math.atan2(RULER_FRONT.y - DECK_FRONT.y, DECK_FRONT.z - RULER_FRONT.z);
+const REAR = { front: -.3, top: 1.0, back: -3.35 };
+const DECK_Z0 = 2.2, DECK_L = (5.32 - DECK_Z0) / Math.cos(DECK_TILT);
+const LCD_V = .84, CTRL_V = .8, PAPER_X = -4.3, SPACE_X = 4.3;
+const DECK_N = new THREE.Vector3(0, Math.cos(DECK_TILT), Math.sin(DECK_TILT));      // out of the deck surface
+const RULER_N = new THREE.Vector3(0, Math.sin(GUIDE_LEAN), Math.cos(GUIDE_LEAN));   // out of the ruler's face
+
+// paper path: arc length u (0 = print line)
+const PATH_STEP = .01, U_MIN = -6, U_MAX = 9, N_PATH = Math.ceil((U_MAX - U_MIN) / PATH_STEP) + 2;
+const PY = new Float32Array(N_PATH), PZ = new Float32Array(N_PATH);
+{
+  const uIn = (PHI_IN - PHI_P) * RP;
+  let y = RP * Math.sin(PHI_E), z = RP * Math.cos(PHI_E), curl = 0, s = 0, uPrev = U_EXIT;
+  for (let i = 0; i < N_PATH; i++) {
+    const u = U_MIN + i * PATH_STEP;
+    if (u <= uIn) { const d = uIn - u; PY[i] = RP * Math.sin(PHI_IN) - d * Math.cos(PHI_IN); PZ[i] = RP * Math.cos(PHI_IN) + d * Math.sin(PHI_IN); }
+    else if (u <= U_EXIT) { const p = PHI_P + u / RP; PY[i] = RP * Math.sin(p); PZ[i] = RP * Math.cos(p); }
+    else {
+      const ds = u - uPrev; uPrev = u; curl += .075 * smooth(2.2, 5.5, s) * ds;
+      const beta = Math.min(deg(84), PHI_E + (LEAN - PHI_E) * smooth(0, 1.1, s) + curl);
+      y += Math.cos(beta) * ds; z -= Math.sin(beta) * ds; s += ds; PY[i] = y; PZ[i] = z;
+    }
+  }
+}
+const PT = { y: 0, z: 0 };
+function sample(u) { const f = (u - U_MIN) / PATH_STEP; let i = clamp(Math.floor(f), 0, N_PATH - 2); const t = f - i; PT.y = PY[i] + (PY[i + 1] - PY[i]) * t; PT.z = PZ[i] + (PZ[i + 1] - PZ[i]) * t; return PT; }
+
+// ---------------------------------------------------------------- stage
+const stage = document.getElementById('xvStage'), canvas = document.getElementById('xvCanvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .95;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const MAX_ANISO = renderer.capabilities.getMaxAnisotropy();
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b0a09);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture; scene.environmentIntensity = .32;
+const camera = new THREE.PerspectiveCamera(32, 1.6, .5, 200);
+const HOME = { pos: new THREE.Vector3(12.5, 9.5, 17), tgt: new THREE.Vector3(0, -.3, .6) };
+camera.position.copy(HOME.pos);
+const controls = new OrbitControls(camera, canvas);
+controls.target.copy(HOME.tgt); controls.enableDamping = true; controls.dampingFactor = .08;
+controls.minDistance = 3; controls.maxDistance = 45; controls.maxPolarAngle = deg(88);
+// the lamp, as in the app: warm, from the front left and above
+const lamp = new THREE.SpotLight(0xffd6a8, 190, 0, deg(40), .75, 1.6); lamp.position.set(-7, 12, 9); lamp.target.position.set(0, -.5, .5);
+lamp.castShadow = true; lamp.shadow.mapSize.set(2048, 2048); lamp.shadow.bias = -.0004; lamp.shadow.radius = 4;
+scene.add(lamp, lamp.target);
+const rim = new THREE.DirectionalLight(0xbcd0ff, .7); rim.position.set(8, 6, -10); scene.add(rim);
+const fill = new THREE.DirectionalLight(0xffe8d0, 1.1); fill.position.set(9, 3, 12); scene.add(fill);
+scene.add(new THREE.HemisphereLight(0x8f8676, 0x0b0907, 1.0));
+const desk = new THREE.Mesh(new THREE.CircleGeometry(40, 64), new THREE.MeshStandardMaterial({ color: 0x1b130d, roughness: .85 }));
+desk.rotation.x = -Math.PI / 2; desk.position.y = DESK_Y; desk.receiveShadow = true; scene.add(desk);
+
+// ---------------------------------------------------------------- materials (src/main.js)
+function rubberTexture() {
+  const c = mkCanvas(1024, 64), g = c.getContext('2d'); g.fillStyle = '#161616'; g.fillRect(0, 0, 1024, 64);
+  for (let i = 0; i < 900; i++) { g.fillStyle = Math.random() < .5 ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.25)'; g.fillRect(Math.random() * 1024, Math.random() * 64, 1 + Math.random() * 3, 1 + Math.random() * 20); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const M = {
+  body: new THREE.MeshPhysicalMaterial({ color: 0x262422, roughness: .62, clearcoat: .35, clearcoatRoughness: .32, sheen: .15, sheenRoughness: .6, sheenColor: new THREE.Color(0x3a342c) }),
+  bodyDark: new THREE.MeshStandardMaterial({ color: 0x0d0d0d, roughness: .7 }),
+  rubber: new THREE.MeshStandardMaterial({ map: rubberTexture(), roughness: .72 }),
+  chrome: new THREE.MeshStandardMaterial({ color: 0xd0d3d8, roughness: .22, metalness: 1 }),
+  frame: new THREE.MeshStandardMaterial({ color: 0x19191b, roughness: .62, metalness: .35 }),
+  plastic: new THREE.MeshStandardMaterial({ color: 0x1d1d20, roughness: .5 }),
+  knob: new THREE.MeshStandardMaterial({ color: 0x121213, roughness: .42 }),
+  red: new THREE.MeshStandardMaterial({ color: 0xd2412c, roughness: .4 }),
+};
+const INK = '#d9d3c4', DIM = '#8a857b';
+function printCanvas(wIn, hIn, ppi, draw) {
+  const c = mkCanvas(wIn * ppi, hIn * ppi), g = c.getContext('2d'); g.scale(ppi, ppi); draw(g);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO; return t;
+}
+function label(g, text, x, y, size, color = INK, align = 'center', weight = 600) {
+  g.font = `${weight} ${size}px "IBM Plex Mono", monospace`; g.fillStyle = color; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(text, x, y);
+}
+function keyLegend(g, items, cx, y, size) {
+  const gap = size * 2.2, parts = items.map(([k, v]) => { g.font = `600 ${size}px "IBM Plex Mono", monospace`; const kw = g.measureText(k).width + size * .8; g.font = `500 ${size}px "IBM Plex Mono", monospace`; return { k, v, kw, vw: g.measureText(v).width }; });
+  let x = cx - (parts.reduce((a, p) => a + p.kw + size * .6 + p.vw, 0) + gap * (parts.length - 1)) / 2;
+  for (const p of parts) {
+    g.strokeStyle = 'rgba(217,211,196,.45)'; g.lineWidth = size * .08; g.beginPath(); g.roundRect(x, y - size * .72, p.kw, size * 1.44, size * .25); g.stroke();
+    label(g, p.k, x + p.kw / 2, y + size * .04, size, INK); label(g, p.v, x + p.kw + size * .6, y + size * .04, size, DIM, 'left', 500);
+    x += p.kw + size * .6 + p.vw + gap;
+  }
+}
+function extrudeProfile(pts, x0, x1, bevel = 0) {
+  const shape = new THREE.Shape(); pts.forEach(([z, y], i) => i ? shape.lineTo(z, y) : shape.moveTo(z, y)); shape.closePath();
+  const bt = bevel, depth = x1 - x0 - 2 * bt;
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: bevel > 0, bevelThickness: bt, bevelSize: bevel * .8, bevelOffset: -bevel * .8, bevelSegments: 4, curveSegments: 6 });
+  g.rotateY(-Math.PI / 2); g.translate(x1 - bt, 0, 0); g.computeVertexNormals(); return g;
+}
+const mesh = (geo, mat, shadow = true) => { const m = new THREE.Mesh(geo, mat); m.castShadow = shadow; m.receiveShadow = true; return m; };
+const deckFrame = () => { const f = new THREE.Group(); f.position.set(0, deckY(DECK_Z0), DECK_Z0); f.rotation.x = DECK_TILT; return f; };
+const guideFrame = () => { const f = new THREE.Group(); f.position.copy(GUIDE_TOP); f.rotation.x = -GUIDE_LEAN; return f; };
+
+// ---------------------------------------------------------------- parts
+// Each part is one or more groups, each with its own direction to fly apart in.
+const parts = [];
+function part(def, ...groups) { const p = { ...def, groups: groups.map(([g, off]) => ({ g, off: off.clone(), base: g.position.clone() })) }; p.groups.forEach(x => scene.add(x.g)); parts.push(p); return p; }
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+// the covers move outward (deck forward, rear back, caps sideways) so the mechanism in the middle stays in view
+const S_FRONT = V(0, 2.4, 5.4), S_REAR = V(0, 2.2, -4.8), S_CAP_L = V(-4.4, 1.4, 0), S_CAP_R = V(4.4, 1.4, 0);
+
+function build() {
+  const F = DECK_FRONT, RF = RULER_FRONT, B = GUIDE_TOP, base = DESK_Y + .02;
+  const front = [[F.z + .08, base], [F.z + .12, F.y - .2], [F.z, F.y], [RF.z, RF.y], [RF.z - .02, -1.2], [.15, -1.2], [.15, base]];
+  const rear = [[REAR.front, base], [REAR.front, REAR.top - .3], [REAR.front - .25, REAR.top], [REAR.back + .3, REAR.top + .04], [REAR.back, REAR.top - .3], [REAR.back, base]];
+  const cap = [[F.z + .08, base], [F.z + .12, F.y - .2], [F.z, F.y], [RF.z, RF.y], [B.z, B.y], [.62, .92], [REAR.front - .25, REAR.top], [REAR.back + .3, REAR.top + .04], [REAR.back, REAR.top - .3], [REAR.back, base]];
+  const grp = (...ms) => { const g = new THREE.Group(); ms.forEach(m => g.add(m)); return g; };
+
+  // ---- body
+  part({ id: 'front', group: 'Body', name: 'Front deck',
+    what: 'The sloped front of the one-piece top shell. It rises from a small lip at the front to the ruler, then drops into the carriage well. The display and every printed control sit on it.',
+    real: 'Typestar 7 and Panasonic electronic typewriters: an injection-moulded ABS top shell over the chassis.',
+    ours: 'A 7-point side profile extruded 11″ across (<code>extrudeProfile()</code>). Satin ABS as a physical material: roughness .62, clearcoat .35, a warm sheen.',
+    code: 'main.js · top shell' },
+    [grp(mesh(extrudeProfile(front, -5.5, 5.5), M.body)), S_FRONT]);
+  part({ id: 'rear', group: 'Body', name: 'Rear cover',
+    what: 'The raised section behind the paper slot. It covers the platen, so only the paper and the knobs show.',
+    real: 'The rear housing that hides the platen, feed rollers and motor.',
+    ours: 'The same extruded-profile technique; a dark reveal line marks where the slot meets it.',
+    code: 'main.js · top shell' },
+    [grp(mesh(extrudeProfile(rear, -5.5, 5.5), M.body), (() => { const l = mesh(new THREE.BoxGeometry(10.72, .04, .06), M.bodyDark, false); l.position.set(0, REAR.top - .02, REAR.front - .2); return l; })()), S_REAR]);
+  part({ id: 'caps', group: 'Body', name: 'End caps',
+    what: 'Solid caps close the full side profile at both ends and bridge over the slot beside the paper. Because of them the shell reads as one body rather than an assembly.',
+    real: 'The side housings of the Typestar, which hold the knobs and switches.',
+    ours: 'The full 10-point profile, extruded .7″ with a .09″ bevel. <code>bevelOffset</code> pulls the bevel inward so the caps sit flush with the unbevelled shell.',
+    code: 'main.js · top shell' },
+    [grp(mesh(extrudeProfile(cap, -6.06, -5.36, .09), M.body)), S_CAP_L], [grp(mesh(extrudeProfile(cap, 5.36, 6.06, .09), M.body)), S_CAP_R]);
+  {
+    const well = mesh(new THREE.PlaneGeometry(10.72, RF.z - .15), M.bodyDark, false); well.rotation.x = -Math.PI / 2; well.position.set(0, -1.19, (RF.z + .15) / 2);
+    const wallF = mesh(new THREE.PlaneGeometry(10.72, RF.y + 1.2), M.bodyDark, false); wallF.position.set(0, (RF.y - 1.2) / 2, RF.z - .025); wallF.rotation.y = Math.PI;
+    part({ id: 'well', group: 'Body', name: 'Carriage well',
+      what: 'The matte black floor and wall under the ruler. The head and cassette ride here, and seen through the frosted plate they read clearly against the shadow.',
+      real: 'The open bay where the carriage travels.',
+      ours: 'Two planes in near-black (roughness .7). They exist only to give the mechanism a dark backdrop.',
+      code: 'main.js · top shell' },
+      [grp(well, wallF), V(0, -.6, 0)]);
+  }
+
+  // ---- display & controls (all on the deck)
+  {
+    const f = deckFrame();
+    const tex = printCanvas(12, DECK_L, 220, g => {
+      g.translate(6, 0);
+      g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(-5.3, .025, 10.6, .012); g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(-5.3, .039, 10.6, .01);
+      const lw = 6.5, lh = 1.12, ly = LCD_V - lh / 2;
+      g.fillStyle = '#0c0c0c'; g.beginPath(); g.roundRect(-lw / 2, ly, lw, lh, .1); g.fill();
+      label(g, 'LINE MEMORY · 31 CH', -lw / 2 + .1, ly - .085, .07, DIM, 'left', 500); label(g, 'THERMAL TRANSFER', lw / 2 - .1, ly - .085, .07, DIM, 'right', 500);
+      g.fillStyle = '#0b0b0b'; g.beginPath(); g.roundRect(PAPER_X - .52, CTRL_V - .07, 1.04, .14, .07); g.fill();
+      label(g, 'ROLL', PAPER_X - .36, CTRL_V - .24, .08); label(g, 'FAN', PAPER_X, CTRL_V - .24, .08); label(g, 'CARD', PAPER_X + .36, CTRL_V - .24, .08);
+      label(g, 'PAPER', PAPER_X, CTRL_V + .27, .1, INK); label(g, 'ALT P', PAPER_X, CTRL_V + .41, .07, DIM, 'center', 500);
+      const pv = CTRL_V + .16;
+      [0, 1, 2].forEach(i => { const a = (i - 1) * .62; g.fillStyle = INK; g.beginPath(); g.arc(SPACE_X + Math.sin(a) * .3, pv - Math.cos(a) * .3, .018, 0, TAU); g.fill(); label(g, ['1', '1½', '2'][i], SPACE_X + Math.sin(a) * .42, pv - Math.cos(a) * .42, .1); });
+      g.fillStyle = '#0b0b0b'; g.beginPath(); g.arc(SPACE_X, pv, .1, 0, TAU); g.fill();
+      label(g, 'LINE SPACE', SPACE_X, CTRL_V + .35, .1, INK); label(g, 'ALT S', SPACE_X, CTRL_V + .49, .07, DIM, 'center', 500);
+      keyLegend(g, [['RETURN', 'PRINT LINE'], ['⌫', 'CORRECT'], ['CTRL B', 'BOLD'], ['CTRL U', 'UNDERLINE'], ['CTRL M', 'LINE / CHAR']], 0, 1.66, .082);
+      keyLegend(g, [['CTRL X', 'TEAR · EJECT CARD'], ['ALT T', 'TIDY DESK'], ['ALT M', 'SOUND'], ['ESC', 'TYPING']], 0, 1.95, .082);
+      g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(-5.4, 2.2, 10.8, .01);
+      keyLegend(g, [['SCROLL', 'VIEWS'], ['DRAG', 'MOVE SCRAP · PAN DESK'], ['CLICK', 'READ'], ['BIN', 'DROP IN TO DISCARD']], 0, 2.44, .074);
+      g.fillStyle = '#c8452f'; g.beginPath(); g.arc(-4.93, 2.855, .085, 0, TAU); g.fill();
+      g.strokeStyle = 'rgba(246,240,228,.85)'; g.lineWidth = .008; g.beginPath(); g.arc(-4.93, 2.855, .02, 0, TAU); g.stroke();
+      label(g, 'PLATEN', -4.78, 2.86, .13, INK, 'left', 600); label(g, 'LM-31 · THERMAL LINE MEMORY', 5.05, 2.86, .075, DIM, 'right', 500);
+    });
+    const plane = mesh(new THREE.PlaneGeometry(12, DECK_L), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: .5, depthWrite: false }), false);
+    plane.rotation.x = -Math.PI / 2; plane.position.set(0, .002, DECK_L / 2); f.add(plane);
+    part({ id: 'legend', group: 'Display & controls', name: 'Printed deck',
+      what: 'Everything printed on the body: the display recess, the switch labels, three rows of key legends and the name plate with the roller badge. Every shortcut is written on the machine.',
+      real: 'Pad-printed legends on moulded plastic.',
+      ours: 'One 12″ × 3″ canvas at 220 ppi, laid on the deck as a single transparent plane. Using flat print instead of modelled buttons is the hybrid choice: you read the controls rather than hunt for them.',
+      code: 'main.js · the deck' },
+      [f, S_FRONT.clone().addScaledVector(DECK_N, 1.2)]);
+  }
+  {
+    const f = deckFrame(), lg = new THREE.Group(); lg.position.set(0, .009, LCD_V); lg.rotation.x = -Math.PI / 2; f.add(lg);
+    const LW = 1300, LH = 132, c = mkCanvas(LW, LH), g = c.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, LH); bg.addColorStop(0, '#a9b29a'); bg.addColorStop(1, '#949e85'); g.fillStyle = bg; g.fillRect(0, 0, LW, LH);
+    const onC = 'rgba(22,28,18,0.92)', offC = 'rgba(30,40,24,0.07)';
+    g.font = '600 17px "IBM Plex Mono", monospace'; g.textBaseline = 'middle';
+    const ind = (t, x, on) => { g.fillStyle = on ? onC : offC; g.fillText(t, x, 22); };
+    ind('LINE', 30, true); ind('CHAR', 92, false); ind('CAPS', 160, false);
+    g.fillStyle = onC; g.fillRect(231, 13, 2, 18); g.beginPath(); g.moveTo(226, 16); g.lineTo(232, 9); g.lineTo(238, 16); g.fill(); g.beginPath(); g.moveTo(226, 28); g.lineTo(232, 35); g.lineTo(238, 28); g.fill();
+    ind('1', 244, true); ind('ROLL', 300, true); ind('♪', 366, false); ind('◂', 392, false); ind('B', 426, false);
+    g.fillStyle = offC; g.fillText('U', 452, 22); g.fillRect(451, 32, 12, 2);
+    const text = 'HOLD THIS LINE, THEN LET IT GO', cols = 65, col = text.length;
+    const rx0 = 488, rx1 = 1080; g.fillStyle = 'rgba(22,28,18,0.35)'; g.fillRect(rx0, 21, rx1 - rx0, 2);
+    for (let k = 0; k <= cols; k += 5) g.fillRect(rx0 + (rx1 - rx0) * k / cols - 1, k % 10 ? 17 : 13, 2, k % 10 ? 5 : 9);
+    { g.fillStyle = onC; const px = rx0 + (rx1 - rx0) * col / cols; g.beginPath(); g.moveTo(px, 26); g.lineTo(px - 6, 36); g.lineTo(px + 6, 36); g.fill(); }
+    g.textAlign = 'right'; ind(`${cols - col} LEFT`, 1272, true); g.textAlign = 'left';
+    const P = 6.6, D = 5.5, x0 = (LW - 31 * 40) / 2 + 3, y0 = 50;
+    for (let pass = 0; pass < 2; pass++) for (let i = 0; i < 31; i++) {
+      const rows = romGlyph(text[i] ?? ' '), cx = x0 + i * 40;
+      for (let r = 0; r < 7; r++) for (let k = 0; k < 5; k++) {
+        const lit = (rows[r] >> (4 - k)) & 1;
+        if (pass === 0) { if (lit) { g.fillStyle = 'rgba(30,40,24,0.16)'; g.fillRect(cx + k * P + 2, y0 + r * P + 2, D, D); } }
+        else { g.fillStyle = lit ? onC : offC; g.fillRect(cx + k * P, y0 + r * P, D, D); }
+      }
+      if (pass === 1) for (let k = 0; k < 5; k++) { g.fillStyle = i === col ? onC : offC; g.fillRect(cx + k * P, y0 + 7.4 * P, D, D * .7); }
+    }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+    lg.add(mesh(new THREE.PlaneGeometry(5.8, 5.8 * LH / LW), new THREE.MeshStandardMaterial({ map: t, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: .3, roughness: .7 }), false));
+    const glass = mesh(new THREE.PlaneGeometry(6.3, 1.0), new THREE.MeshPhysicalMaterial({ color: 0xffffff, transparent: true, opacity: .06, roughness: .04, clearcoat: 1, depthWrite: false }), false);
+    glass.position.z = .004; lg.add(glass);
+    part({ id: 'lcd', group: 'Display & controls', name: 'LCD',
+      what: 'The line-memory display, where a line waits until you commit it. The status row shows LINE/CHAR, CAPS, line spacing, paper type, the margin bell, scroll, bold and underline, a column ruler with the carriage pointer, and how many characters are left.',
+      real: 'The Canon AP-1500’s 31-character LCD. The dots follow an HD44780-style 5×7 character ROM.',
+      ours: 'A 1300×132 canvas drawn from our own 5×7 ROM (<code>lcdfont.js</code>, with ½ added). Every dot casts a faint shadow onto the backplane, which is what makes it read as a real LCD. It is redrawn only when the state changes.',
+      code: 'main.js · drawLCD()' },
+      [f, S_FRONT.clone().addScaledVector(DECK_N, 2.2)]);
+  }
+  {
+    const f = deckFrame();
+    const k = mesh(new RoundedBoxGeometry(.3, .12, .2, 3, .04), new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: .35, clearcoat: .5 }));
+    k.position.set(PAPER_X - .36, .06, CTRL_V); const ridge = mesh(new THREE.BoxGeometry(.03, .02, .15), M.red, false); ridge.position.y = .065; k.add(ridge); f.add(k);
+    part({ id: 'paperSw', group: 'Display & controls', name: 'Paper selector',
+      what: 'A three-position slide switch for ROLL, FAN (fanfold) and CARD (5×3 index cards). Shortcut: Alt P.',
+      real: 'Mode switches on the deck of electronic typewriters.',
+      ours: 'A rounded knob that eases to each detent (<code>1 − e<sup>−14·dt</sup></code>), with an invisible hit box so it’s easy to click. Changing the type loads a new sheet with a different <code>P.type</code>.',
+      code: 'main.js · PAPER slide switch' },
+      [f, S_FRONT.clone().addScaledVector(DECK_N, .6)]);
+  }
+  {
+    const f = deckFrame(), lever = new THREE.Group(); lever.position.set(SPACE_X, .02, CTRL_V + .16); lever.rotation.y = .62; f.add(lever);
+    const hub = mesh(new THREE.CylinderGeometry(.09, .1, .08, 32), new THREE.MeshStandardMaterial({ color: 0x9da1a5, roughness: .25, metalness: 1 })); hub.position.y = .04; lever.add(hub);
+    const arm = mesh(new RoundedBoxGeometry(.075, .05, .36, 2, .02), new THREE.MeshPhysicalMaterial({ color: 0x1a1a1a, roughness: .35, clearcoat: .5 })); arm.position.set(0, .07, -.18); lever.add(arm);
+    const tip = mesh(new THREE.BoxGeometry(.03, .012, .1), M.red, false); tip.position.set(0, .1, -.3); lever.add(tip);
+    part({ id: 'space', group: 'Display & controls', name: 'Line space lever',
+      what: 'Sets line spacing to 1, 1½ or 2. Shortcut: Alt S. On index cards the ruled lines follow the setting.',
+      real: 'The line-space lever beside the platen on almost every typewriter.',
+      ours: 'A pivoting lever with three printed detents. The new spacing is queued (<code>feedSpacing</code>), so lines already waiting to print keep the spacing they were typed with.',
+      code: 'main.js · LINE SPACE lever' },
+      [f, S_FRONT.clone().addScaledVector(DECK_N, .6)]);
+  }
+  {
+    const capTopY = z => 1.0 + .04 * ((-.55 - z) / 2.5), DZ = -1.05;
+    const dial = new THREE.Group(); dial.position.set(5.71, capTopY(DZ), DZ); dial.rotation.y = -.75;
+    const kg = new THREE.CylinderGeometry(.17, .18, .12, 96, 2), p = kg.attributes.position;
+    for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), r = Math.hypot(x, z); if (r > .15) { const a = Math.atan2(z, x), kk = (r > .175 ? .18 : .17) + .008 * Math.pow(Math.abs(Math.cos(a * 14)), .6); p.setX(i, Math.cos(a) * kk); p.setZ(i, Math.sin(a) * kk); } }
+    kg.computeVertexNormals();
+    const knob = mesh(kg, new THREE.MeshPhysicalMaterial({ color: 0x2c2b29, roughness: .35, clearcoat: .6 })); knob.position.y = .06; dial.add(knob);
+    const ptr = mesh(new THREE.BoxGeometry(.025, .01, .12), new THREE.MeshBasicMaterial({ color: 0xe8e2d4 }), false); ptr.position.set(0, .125, .08); dial.add(ptr);
+    const tex = printCanvas(.62, 1.5, 400, g => { g.translate(.31, .6); [['8½', -1], ['6', 0], ['4', 1]].forEach(([l, i]) => label(g, l, Math.sin(i * .75) * .27, Math.cos(i * .75) * .27, .075)); label(g, 'WIDTH', 0, -.3, .07); label(g, 'ALT W', 0, -.4, .05, DIM, 'center', 500); label(g, 'IN.', 0, .42, .05, DIM, 'center', 500); });
+    const pl = mesh(new THREE.PlaneGeometry(.62, 1.5), new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: .5 }), false);
+    pl.rotation.x = -Math.PI / 2; pl.position.set(5.71, capTopY(DZ) + .003, DZ + .15);
+    const tex2 = printCanvas(.62, 1.1, 400, g => { g.translate(.31, .55); label(g, 'PLATEN', 0, -.2, .07); label(g, '▲ PG UP', 0, -.05, .06, DIM, 'center', 500); label(g, '▼ PG DN', 0, .07, .06, DIM, 'center', 500); });
+    const pl2 = mesh(new THREE.PlaneGeometry(.62, 1.1), new THREE.MeshStandardMaterial({ map: tex2, transparent: true, depthWrite: false, roughness: .5 }), false);
+    pl2.rotation.x = -Math.PI / 2; pl2.position.set(-5.71, capTopY(DZ) + .003, DZ);
+    part({ id: 'dial', group: 'Display & controls', name: 'Width dial & cap legends',
+      what: 'The knurled dial on the right cap sets the paper width to 8½″, 6″ or 4″ (Alt W). The paper guides and the red margin tabs on the ruler move with it. The left cap carries the platen legend.',
+      real: 'Paper edge guides and margin stops, turned into a single control.',
+      ours: 'The knurl is displaced into the cylinder geometry (28 lobes). The widths are presets with matching margins (1″, .7″, .5″), and the "LEFT" count on the display follows the column count.',
+      code: 'main.js · WIDTH dial' },
+      [(() => { const g = new THREE.Group(); g.add(dial, pl); return g; })(), V(.6, 1.5, 9.1)]);   // exploded out beside the other controls, where it reads as one of them
+    parts.find(p => p.id === 'caps').groups[0].g.add(pl2);   // the platen legend is printed on the left cap
+  }
+
+  // ---- print mechanism
+  {
+    const f = guideFrame(), W = 10.72, Sx = 4096, H = Math.round(Sx * GUIDE_H / W), pxIn = Sx / W;
+    const c = mkCanvas(Sx, H), g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,0.28)'; g.fillRect(0, 0, Sx, 4);
+    const X = col => (-5.2 + col * PITCH + W / 2) * pxIn;
+    for (let col = 0; col <= 100; col += 10) { g.fillStyle = 'rgba(255,255,255,0.16)'; g.fillRect(X(col) - 1.5, 30, 3, H * .5); }
+    const y0 = H * .64; g.fillStyle = 'rgba(240,236,224,0.9)'; g.font = `500 ${Math.round(H * .11)}px "IBM Plex Mono", monospace`; g.textAlign = 'center';
+    for (let col = 0; col <= 104; col++) { const x = X(col), big = col % 10 === 0, mid = col % 5 === 0; g.fillRect(x - 1.4, y0, 2.8, big ? H * .12 : mid ? H * .08 : H * .045); if (big) g.fillText(String(col), x, y0 + H * .25); }
+    g.fillStyle = 'rgba(240,236,224,0.55)'; g.fillRect(0, y0 - 2, Sx, 2);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+    const body = mesh(new THREE.BoxGeometry(W, GUIDE_H, .06), new THREE.MeshPhysicalMaterial({ color: 0xb4bac0, transmission: 1, roughness: .3, thickness: .12, ior: 1.49, clearcoat: 1, clearcoatRoughness: .05, specularIntensity: .6, attenuationColor: new THREE.Color(0x60666c), attenuationDistance: 1.6 }), false);
+    body.position.set(0, -GUIDE_H / 2, -.03); f.add(body);
+    const pr = mesh(new THREE.PlaneGeometry(W, GUIDE_H), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: .3, depthWrite: false }), false);
+    pr.position.set(0, -GUIDE_H / 2, .002); pr.renderOrder = 5; f.add(pr);
+    const tri = new THREE.Shape(); tri.moveTo(-.06, .07); tri.lineTo(.06, .07); tri.lineTo(0, -.03); tri.closePath();
+    for (const x of [-3.25, 3.25]) { const m = mesh(new THREE.ShapeGeometry(tri), M.red, false); m.position.set(x, -GUIDE_H * .6, .006); f.add(m); }
+    part({ id: 'ruler', group: 'Print mechanism', name: 'Frosted ruler',
+      what: 'A smoked acrylic plate lying flush with the shell at the print line, 30° from horizontal. The head and cassette show through it, softened. On top is a crisp scale of 0–100 columns with moulded ribs every ten, plus the red margin tabs.',
+      real: 'The clear paper guide and card holder in front of a Typestar’s print head.',
+      ours: 'A physical-material box: transmission 1, roughness .3, IOR 1.49, thickness .12, rendered at half resolution. We tried several blur levels. At 100% the line you had just printed disappeared; at 0% the plate looked like a hole. We settled on about 60%. It is the most expensive material in the scene, and it is where "just printed" happens.',
+      code: 'main.js · frosted acrylic ruler' },
+      [f, V(0, 2.3, 1.7)]);
+  }
+  const CX = -1.1;   // the carriage, stopped partway along a line
+  {
+    const head = new THREE.Group(); head.position.set(CX, PRINT_Y, PRINT_Z); head.rotation.x = -PHI_P;
+    const ceramic = new THREE.MeshStandardMaterial({ color: 0xcfc8b8, roughness: .35 });
+    const strip = mesh(new RoundedBoxGeometry(.13, .3, .06, 2, .015), ceramic); strip.position.set(0, -.1, .07); head.add(strip);
+    const dots = mesh(new THREE.PlaneGeometry(.02, .26), new THREE.MeshBasicMaterial({ color: 0xff7a3a }), false); dots.position.set(0, -.1, .101); head.add(dots);
+    const mount = mesh(new RoundedBoxGeometry(.42, .5, .22, 3, .05), M.frame); mount.position.set(0, -.42, .2); head.add(mount);
+    part({ id: 'head', group: 'Print mechanism', name: 'Thermal head',
+      what: 'A ceramic strip with a vertical line of 26 heater dots. It locks against the platen, glows while it burns a line, then releases and returns to the left margin.',
+      real: 'The Typestar 7’s 26-dot thermal head. Its dots are pulsed as the carriage moves and darken heat-sensitive paper, or melt the ink of a transfer film onto plain paper.',
+      ours: 'A small rounded block whose dot line changes colour with <code>Mech.burn</code>. The lock is a .07″ move toward the platen. Each line runs as a job sequence: lock → print at 2.3 in/s → release → line feed → return at 5.2 in/s.',
+      code: 'main.js · carriage, printRun()' },
+      [head, V(0, .3, 1.2)]);
+  }
+  {
+    const g = new THREE.Group();
+    const hb = new THREE.Group(); hb.position.set(CX, PRINT_Y, PRINT_Z); hb.rotation.x = -PHI_P; g.add(hb);
+    const film = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: .18, metalness: .3, side: THREE.DoubleSide });
+    const face = mesh(new THREE.PlaneGeometry(.62, .34), film, false); face.position.set(.12, -.1, .03); hb.add(face);
+    for (const sx of [-1, 1]) { const leg = mesh(new THREE.PlaneGeometry(.1, .62), film, false); leg.position.set(.12 + sx * .31, -.42, .12); leg.rotation.y = sx * .9; hb.add(leg); }
+    const cas = guideFrame(); cas.position.x = CX; g.add(cas);
+    const Wc = 2.1, Hc = .62, c = mkCanvas(1024, 304), cg = c.getContext('2d');
+    cg.fillStyle = '#232326'; cg.beginPath(); cg.roundRect(0, 0, 1024, 304, 26); cg.fill(); cg.strokeStyle = 'rgba(255,255,255,.08)'; cg.lineWidth = 4; cg.stroke();
+    for (const cx of [250, 774]) { cg.fillStyle = '#0c0c0e'; cg.beginPath(); cg.arc(cx, 152, 112, 0, TAU); cg.fill(); cg.strokeStyle = 'rgba(255,255,255,.12)'; cg.lineWidth = 3; cg.stroke(); }
+    cg.fillStyle = 'rgba(210,205,192,.55)'; cg.font = '600 28px "IBM Plex Mono", monospace'; cg.textAlign = 'center'; cg.fillText('THERMAL TRANSFER', 512, 150);
+    cg.fillStyle = 'rgba(210,205,192,.3)'; cg.font = '500 22px "IBM Plex Mono", monospace'; cg.fillText('FILM · BLACK', 512, 186);
+    cg.fillStyle = '#c8452f'; cg.fillRect(506, 16, 12, 60);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+    const shell = mesh(new RoundedBoxGeometry(Wc, Hc, .16, 3, .05), [M.plastic, M.plastic, M.plastic, M.plastic, new THREE.MeshStandardMaterial({ map: t, roughness: .45 }), M.plastic]);
+    shell.position.set(.12, -.86, -.2); cas.add(shell);
+    for (const sx of [-1, 1]) {
+      const reel = new THREE.Group(); reel.position.set(.12 + sx * Wc * .256, -.86, -.115); cas.add(reel);
+      const r = sx < 0 ? .19 : .13;
+      reel.add(mesh(new THREE.CylinderGeometry(r, r, .03, 40).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: .2, metalness: .5 }), false));
+      reel.add(mesh(new THREE.CylinderGeometry(.075, .075, .04, 6).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xd6d0c2, roughness: .5 }), false));
+      reel.add(mesh(new THREE.BoxGeometry(.13, .018, .045), new THREE.MeshStandardMaterial({ color: 0x5a564f }), false));
+    }
+    const ptr = mesh(new THREE.PlaneGeometry(.028, .22), new THREE.MeshBasicMaterial({ color: 0xe0452e }), false); ptr.position.set(0, -.62, -.1); cas.add(ptr);
+    part({ id: 'cassette', group: 'Print mechanism', name: 'Film ribbon & cassette',
+      what: 'A thermal-transfer film comes up from the cassette, wraps the face of the head and goes back down. The reels wind as the film is used, and a red pointer on the cassette reads against the ruler’s scale.',
+      real: 'The Typestar 5 ribbon cassette. It lets a thermal typewriter print on plain paper by melting ink off a film.',
+      ours: 'A box with a printed label, two reels whose wound radius differs, and three film planes. The reels turn with <code>Mech.ribbon</code>, the distance of film used. The whole carriage slides along X with <code>Mech.x</code>.',
+      code: 'main.js · cassette' },
+      [g, V(0, -.1, 2.7)]);
+  }
+  {
+    const g = new THREE.Group();
+    g.add(mesh(new THREE.CylinderGeometry(R, R, 10.7, 160, 1).rotateZ(Math.PI / 2), M.rubber));
+    g.add(mesh(new THREE.CylinderGeometry(.09, .09, 13.4, 16).rotateZ(Math.PI / 2), M.chrome));
+    part({ id: 'platen', group: 'Print mechanism', name: 'Platen',
+      what: 'The rubber roller that the paper wraps around and the head prints against. It turns as the paper feeds. The whole project is named after it.',
+      real: 'The platen of every typewriter since the 1870s: a hard rubber cylinder on a steel shaft.',
+      ours: 'A 160-segment cylinder, 0.78″ in radius and 10.7″ long, with a speckled rubber texture and a chrome shaft. Paper runs 0.012″ outside it (<code>RP</code>). The roller rotates by exactly feed ÷ radius, so the paper and the roller never slip.',
+      code: 'main.js · platen + knobs' },
+      [g, V(0, .35, 0)]);
+  }
+  {
+    const mk = sx => {
+      const g = new THREE.Group(), kg = new THREE.CylinderGeometry(.66, .66, .5, 180, 3), p = kg.attributes.position;
+      for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), r = Math.hypot(x, z); if (r > .6) { const a = Math.atan2(z, x), k = .62 + .04 * Math.pow(Math.abs(Math.cos(a * 18)), .6); p.setX(i, Math.cos(a) * k); p.setZ(i, Math.sin(a) * k); } }
+      kg.computeVertexNormals(); kg.rotateZ(Math.PI / 2);
+      const knob = mesh(kg, M.knob); knob.position.x = sx * 6.36; g.add(knob);
+      const cap = mesh(new THREE.CylinderGeometry(.3, .3, .52, 40).rotateZ(Math.PI / 2), M.chrome); cap.position.x = sx * 6.37; g.add(cap);
+      const tick = mesh(new THREE.BoxGeometry(.06, .04, .2), new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: .4 }), false); tick.position.set(sx * 6.63, .45, 0); g.add(tick);
+      return g;
+    };
+    part({ id: 'knobs', group: 'Print mechanism', name: 'Platen knobs',
+      what: 'Turn the platen by hand to feed the paper up or down: Page Up and Page Down, or Ctrl ↑ and ↓.',
+      real: 'The platen knobs at each end of a typewriter carriage.',
+      ours: 'Thirty-six lobes of grip pushed straight into the cylinder’s vertices, with chrome caps and an index tick. They turn together with the platen.',
+      code: 'main.js · platen + knobs' },
+      [mk(-1), V(-2.4, .35, 0)], [mk(1), V(2.4, .35, 0)]);
+  }
+
+  // ---- paper path
+  {
+    const W = 8.5, u0 = -2.6, u1 = 5.2, NU = 320, NX = 4, ppi = 110;
+    const pos = [], uv = [], idx = [];
+    for (let j = 0; j <= NU; j++) { const u = u0 + (u1 - u0) * j / NU; sample(u); for (let i = 0; i <= NX; i++) { pos.push(-W / 2 + W * i / NX, PT.y, PT.z); uv.push(i / NX, j / NU); } }
+    for (let j = 0; j < NU; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c2 = a + NX + 1, d = c2 + 1; idx.push(a, b, d, a, d, c2); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+    const c = mkCanvas(W * ppi, (u1 - u0) * ppi), g = c.getContext('2d'), yOf = u => (u1 - u) * ppi;
+    g.fillStyle = '#f2ede1'; g.fillRect(0, 0, c.width, c.height);
+    // a torn top edge, as the roll leaves the last tear
+    g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.moveTo(0, 0);
+    for (let x = 0; x <= c.width; x += 6) g.lineTo(x, 3 + Math.random() * 5); g.lineTo(c.width, 0); g.fill(); g.globalCompositeOperation = 'source-over';
+    const lines = ['Dear reader,', '', 'This page came off the platen one line', 'at a time. Each line waited on the', 'display, was looked over, and then the', 'head carried it across in one pass.', '', 'Nothing leaves this ro'];
+    g.fillStyle = 'rgba(28,24,20,.9)'; g.font = `${12 / 72 * ppi}px "Courier Prime", monospace`; g.textBaseline = 'alphabetic';
+    lines.forEach((l, k) => { const u = (lines.length - 1 - k) / 6; g.fillText(l, 1 * ppi, yOf(u) - .02 * ppi); });
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+    const paper = mesh(geo, new THREE.MeshStandardMaterial({ map: t, roughness: .92, side: THREE.DoubleSide, alphaTest: .5, transparent: false }));
+    part({ id: 'paper', group: 'Paper path', name: 'Paper',
+      what: 'The paper comes up from the roll, wraps the front of the platen past the head, then leans back on the support. Printed lines climb away from you, the way paper leaves a printer. It tears off 0.32″ above the print line.',
+      real: 'A thermal roll, fanfold continuous stationery with tractor holes, or a 5×3 index card.',
+      ours: 'A single mesh whose rows are laid along an arc-length table (<code>sample(u)</code>): around the platen, a free span, then the 24° support, with a slight curl as it rises. Each sheet is a 150 dpi canvas that a moving strip reveals as the head passes, and only that strip is uploaded to the GPU.',
+      code: 'main.js · paper path, Sheet' },
+      [paper, V(0, 4.2, -1.2)]);
+  }
+  {
+    sample(U_EXIT + 1.2);
+    const sup = mesh(new RoundedBoxGeometry(9.0, 2.2, .06, 2, .02), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: .7 }));
+    sup.position.set(0, PT.y - .05, PT.z - .12); sup.rotation.x = -LEAN;
+    part({ id: 'support', group: 'Paper path', name: 'Paper support',
+      what: 'A black plate at the back that the paper leans on as it rises, 24° back from vertical.',
+      real: 'The paper rest behind the platen.',
+      ours: 'A thin rounded box. The paper path is built to lie on its face.',
+      code: 'main.js · rear paper support' },
+      [(() => { const g = new THREE.Group(); g.add(sup); return g; })(), V(0, 1.8, -3.9)]);
+  }
+  {
+    const g = new THREE.Group();
+    for (const sx of [-1, 1]) {
+      const f = mesh(new RoundedBoxGeometry(.06, .3, .34, 2, .02), new THREE.MeshPhysicalMaterial({ color: 0x1c1c1c, roughness: .4, clearcoat: .4 }));
+      f.position.set(sx * (8.5 / 2 + .04), 1.14, -.46); g.add(f);
+      const line = mesh(new THREE.BoxGeometry(.062, .01, .2), new THREE.MeshBasicMaterial({ color: 0xe8e2d4 }), false); line.position.y = .15; f.add(line);
+    }
+    const lever = mesh(new RoundedBoxGeometry(.14, .9, .22, 2, .05), M.frame); lever.position.set(5.74, 1.28, -2.45); lever.rotation.x = -.45; g.add(lever);
+    const tip = mesh(new RoundedBoxGeometry(.24, .28, .34, 3, .08), M.knob); tip.position.set(5.74, 1.7, -2.67); g.add(tip);
+    part({ id: 'guides', group: 'Paper path', name: 'Paper guides & release lever',
+      what: 'Two edge guides in the slot slide to the paper width. The paper release lever sits on the right housing.',
+      real: 'Paper edge guides and the paper release lever, which frees the platen’s grip.',
+      ours: 'The guides follow the width dial. The release lever is there because real machines have one. It is not interactive.',
+      code: 'main.js · paper guides, release lever' },
+      [g, V(0, 1.5, -1.9)]);
+  }
+
+  // every mesh gets its own material so any part can be ghosted on its own
+  parts.forEach((p, i) => {
+    p.index = i; p.meshes = [];
+    p.groups.forEach(G => G.g.traverse(o => { if (o.isMesh) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); o.userData.part = p; o.userData.cast = o.castShadow; p.meshes.push(o); } }));
+    p.meshes.forEach(m => (Array.isArray(m.material) ? m.material : [m.material]).forEach(mt => { mt.userData.o = { t: mt.transparent, op: mt.opacity, dw: mt.depthWrite }; }));
+  });
+}
+
+// ---------------------------------------------------------------- explode, focus, frame
+const ORDER = ['rear', 'front', 'caps', 'legend', 'lcd', 'paperSw', 'space', 'dial', 'ruler', 'cassette', 'head', 'paper', 'support', 'guides', 'platen', 'knobs', 'well'];
+let E = 0, eTarget = null, eFrom = 0, eT = 0, focus = null, hovered = null, dirty = true;
+const tmp = new THREE.Vector3();
+const kOf = (p, e) => easeInOut(clamp((e - ORDER.indexOf(p.id) / ORDER.length * .4) / .6, 0, 1));
+function applyExplode() { parts.forEach(p => { const k = kOf(p, E); p.groups.forEach(G => G.g.position.copy(G.base).addScaledVector(G.off, k)); }); }
+function setGhost(p, on) {
+  p.meshes.forEach(m => (Array.isArray(m.material) ? m.material : [m.material]).forEach(mt => {
+    const o = mt.userData.o;
+    if (on) { mt.transparent = true; mt.opacity = o.op * .07; mt.depthWrite = false; } else { mt.transparent = o.t; mt.opacity = o.op; mt.depthWrite = o.dw; }
+    mt.needsUpdate = true;
+  }));
+  p.meshes.forEach(m => { m.castShadow = !on && m.userData.cast; });
+}
+function partBox(p) { const b = new THREE.Box3(); p.groups.forEach(G => { G.g.updateMatrixWorld(true); b.expandByObject(G.g); }); return b; }
+let camFly = null;
+// fit a box, seen from a direction, allowing for a narrow (portrait) stage
+function frameBox(box, dir, pad) {
+  const c = box.getCenter(new THREE.Vector3()), r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1.1);
+  const half = Math.min(deg(camera.fov / 2), Math.atan(Math.tan(deg(camera.fov / 2)) * camera.aspect));
+  const d = dir ? dir.clone().normalize() : camera.position.clone().sub(controls.target).normalize();
+  camFly = { t: 0, dur: 1.1, p0: camera.position.clone(), t0: controls.target.clone(), p1: c.clone().addScaledVector(d, r / Math.sin(half) * pad), t1: c };
+}
+function explodeTo(v) { eTarget = v; eFrom = E; eT = 0; }
+
+// ---------------------------------------------------------------- the tour: each chapter drives the stage
+const marks = document.getElementById('xvMarks'), tip = document.getElementById('xvTip'), chip = document.getElementById('xvChip');
+const range = document.getElementById('xvRange'), toggle = document.getElementById('xvToggle');
+const steps = [...document.querySelectorAll('.step')];
+let current = null;
+function go(step) {
+  current = step;
+  steps.forEach(s => s.classList.toggle('on', s === step));
+  const ids = (step.dataset.focus || '').split(',').filter(Boolean), ex = +(step.dataset.explode ?? 0);
+  const dir = step.dataset.dir ? new THREE.Vector3(...step.dataset.dir.split(',').map(Number)) : null;
+  focus = ids.length ? new Set(ids) : null;
+  parts.forEach(q => setGhost(q, !!focus && !focus.has(q.id)));
+  explodeTo(ex);
+  const dmode = step.dataset.desk || null;
+  setDesk(dmode); DESKG.visible = !!dmode || !focus;
+  // frame what the chapter is about, as it will be once the machine has finished moving
+  const e0 = E; E = ex; applyExplode();
+  const b = new THREE.Box3(); (focus ? parts.filter(p => focus.has(p.id)) : parts).forEach(p => b.union(partBox(p)));
+  E = e0; applyExplode();
+  if (dmode) frameBox(deskBox(dmode), dir, dmode === 'wide' ? .72 : dmode === 'scene' ? .74 : dmode === 'read' ? .95 : .9);
+  else frameBox(b, dir, focus ? 1.08 : .78);
+  chip.textContent = step.querySelector('h3').textContent;
+  dirty = true;
+}
+function chapterFor(p) { return steps.find(s => (s.dataset.focus || '').split(',').includes(p.id) && s.dataset.focus.split(',').length <= 4) || steps.find(s => (s.dataset.focus || '').split(',').includes(p.id)); }
+function jumpTo(p) { const s = chapterFor(p); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function pickStep() {
+  // on narrow screens the stage is pinned across the top, so read from just below it
+  const top = matchMedia('(max-width: 900px)').matches ? stage.getBoundingClientRect().bottom : 0, line = top + (innerHeight - top) * .45;
+  let best = steps[0];
+  for (const s of steps) if (s.getBoundingClientRect().top < line) best = s;
+  if (best !== current) go(best);
+}
+let scrollQueued = false;
+addEventListener('scroll', () => { if (!scrollQueued) { scrollQueued = true; requestAnimationFrame(() => { scrollQueued = false; pickStep(); }); } }, { passive: true });
+function buildUI() {
+  marks.innerHTML = parts.map(p => `<button type="button" class="xv-m" data-id="${p.id}" aria-label="${p.name}">${p.index + 1}</button>`).join('');
+  marks.addEventListener('click', e => { const b = e.target.closest('button[data-id]'); if (b) jumpTo(parts.find(p => p.id === b.dataset.id)); });
+  marks.addEventListener('mouseover', e => { const b = e.target.closest('button[data-id]'); setHover(b ? parts.find(p => p.id === b.dataset.id) : null, b); });
+  marks.addEventListener('mouseout', () => setHover(null));
+  parts.forEach(p => { p.anchor = new THREE.Box3().expandByObject(p.groups[0].g).getCenter(new THREE.Vector3()); p.mark = marks.querySelector(`[data-id="${p.id}"]`); });
+  range.addEventListener('input', () => { eTarget = null; E = range.value / 1000; dirty = true; });
+  toggle.addEventListener('click', () => explodeTo(E > .5 ? 0 : 1));
+  document.getElementById('xvReset').addEventListener('click', () => current && go(current));
+}
+function setHover(p, el) {
+  if (p === hovered) return; hovered = p;
+  marks.querySelectorAll('.xv-m').forEach(b => b.classList.toggle('hover', !!p && b.dataset.id === p.id));
+  canvas.style.cursor = p ? 'pointer' : '';
+  if (!p) tip.classList.remove('on');
+  else if (el) { const r = stage.getBoundingClientRect(), br = el.getBoundingClientRect(); showTip(p, br.right - r.left + 6, br.top - r.top); }
+  dirty = true;
+}
+function showTip(p, x, y) { tip.textContent = `${p.index + 1} · ${p.name}`; tip.style.transform = `translate(${x}px, ${y}px)`; tip.classList.add('on'); }
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
+function pick(e) {
+  const r = canvas.getBoundingClientRect(); ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects(parts.flatMap(p => (focus && !focus.has(p.id)) ? [] : p.meshes), false);
+  return hits.length ? hits[0].object.userData.part : null;
+}
+canvas.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; });
+canvas.addEventListener('pointerup', e => { if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 5) { const p = pick(e); if (p) jumpTo(p); } down = null; });
+canvas.addEventListener('pointermove', e => {
+  if (e.buttons) return; const p = pick(e); setHover(p);
+  if (p) { const r = stage.getBoundingClientRect(); showTip(p, e.clientX - r.left + 14, e.clientY - r.top + 12); }
+});
+canvas.addEventListener('pointerleave', () => setHover(null));
+controls.addEventListener('change', () => { dirty = true; });
+controls.addEventListener('start', () => { camFly = null; });
+
+// figures open larger in a lightbox
+{
+  const lb = document.getElementById('lb'), img = lb.querySelector('img'), cap = lb.querySelector('figcaption');
+  document.querySelectorAll('.tour .figs img').forEach(im => im.addEventListener('click', () => {
+    img.src = im.src.replace(/width=\d+/, 'width=1800'); img.alt = im.alt; cap.innerHTML = im.closest('figure').querySelector('figcaption').innerHTML; lb.hidden = false;
+  }));
+  lb.addEventListener('click', () => { lb.hidden = true; img.removeAttribute('src'); });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !lb.hidden) { lb.hidden = true; img.removeAttribute('src'); } });
+}
+
+// ---------------------------------------------------------------- the desk: pages, the bin, the marker
+// A small stand-in for the app's desk, built the same way: torn pages that drape over whatever lies
+// beneath them, thin contact shadows past their edges, a wire wastebasket, and one page held up to read.
+const DESKG = new THREE.Group(); DESKG.visible = false; scene.add(DESKG);
+const BIN = { x: -10.4, z: 2.2, r: 2.05, rb: 1.75, h: 3.4 };
+const deskLight = new THREE.PointLight(0xffe2bf, 0, 0, 2); deskLight.position.set(-5, DESK_Y + 11, 13); scene.add(deskLight);
+let deskLightWant = 0;
+const PAGES = [
+  { kind: 'roll', w: 8.5, len: 5.4, lines: ['Monday 25 Sept.', 'Items for today’s agenda:', '', '- Learn about the platen.', '- Tear off a page.', '- Buy milk.'], age: 0 },
+  { kind: 'roll', w: 8.5, len: 4.2, lines: ['A line waits on the display,', 'then it goes to paper for good.', '', 'That is the whole idea.'], marks: true, age: 0 },
+  { kind: 'card', w: 5, len: 3, lines: ['This is an index card', 'A new line for every thought', 'Tear it, keep it'], age: 0 },
+  { kind: 'fan', w: 8.5, len: 6.2, lines: ['PLATEN LM-31', '', 'fanfold, green bar,', 'tractor holes and all.'], age: .55 },
+  { kind: 'card', w: 5, len: 3, lines: ['Call the printer shop', 'about the ribbon.'], age: .3 },
+  { kind: 'roll', w: 6, len: 3.6, lines: ['Six inches wide.', 'Short notes fit better.'], age: .15 },
+];
+// three arrangements of the same pages: a working pile, a tidy grid, and pages spread far across the desk
+const LAYOUT = {
+  pile: [[-5.4, 9.2, .1], [-2.6, 11.0, -.16], [-8.4, 12.2, .3], [-10.2, 8.0, -.08], [-1.2, 13.6, .05], [-6.2, 13.4, -.24]],
+  grid: [[-13.5, 9.9, 0], [-4, 9.3, 0], [3.2, 8.7, 0], [-13.5, 16.3, 0], [-6, 15.0, 0], [0.9, 15.3, 0]],
+  wide: [[-24, 6, .5], [-9, 22, -.4], [14, 18, .25], [26, 4, -.6], [-20, 30, .15], [6, 32, -.3]],
+};
+const pageMeshes = [];
+function pageCanvas(P) {
+  const ppi = 64, W = Math.round(P.w * ppi), H = Math.round(P.len * ppi);
+  const c = mkCanvas(W, H), g = c.getContext('2d'), a = mkCanvas(W, H), ag = a.getContext('2d');
+  const base = P.age ? `rgb(${242 - P.age * 6},${234 - P.age * 14},${214 - P.age * 30})` : '#f2ede1';
+  g.fillStyle = base; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) { const x = Math.random() * W, y = Math.random() * H, r = 20 + Math.random() * 60, gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(150,128,96,.035)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  ag.fillStyle = '#fff'; ag.fillRect(0, 0, W, H); ag.fillStyle = '#000';
+  let left = 1 * ppi, top = .7 * ppi;
+  if (P.kind === 'fan') {
+    for (let y = .5 * ppi; y < H; y += ppi) { g.fillStyle = 'rgba(120,170,120,.13)'; g.fillRect(.5 * ppi, y, W - ppi, .5 * ppi); }
+    for (let y = .25 * ppi; y < H; y += .5 * ppi) for (const x of [.25 * ppi, W - .25 * ppi]) { ag.beginPath(); ag.arc(x, y, .08 * ppi, 0, TAU); ag.fill(); }
+    left = .9 * ppi;
+  }
+  if (P.kind === 'card') {
+    g.strokeStyle = 'rgba(200,69,47,.55)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, .5 * ppi + 11); g.lineTo(W, .5 * ppi + 11); g.stroke();
+    g.strokeStyle = 'rgba(110,140,190,.28)'; g.lineWidth = 1;
+    for (let y = .5 * ppi + 11 + ppi / 6; y < H - 6; y += ppi / 6) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    left = .4 * ppi; top = .5 * ppi;
+  }
+  if (P.kind !== 'card') {   // torn top and bottom edges
+    for (const [y0, dir] of [[0, 1], [H, -1]]) {
+      ag.beginPath(); ag.moveTo(0, y0);
+      for (let x = 0; x <= W; x += 3) ag.lineTo(x, y0 + dir * (1 + Math.random() * 2.6 + Math.sin(x * .05) * .8));
+      ag.lineTo(W, y0); ag.closePath(); ag.fill();
+    }
+  }
+  g.fillStyle = 'rgba(22,20,24,.88)'; g.font = `${Math.round(12 / 72 * ppi)}px "Courier Prime", monospace`; g.textBaseline = 'alphabetic';
+  P.lines.forEach((l, i) => { for (let k = 0; k < l.length; k++) { g.globalAlpha = .8 + Math.random() * .2; g.fillText(l[k], left + k * .1 * ppi + (Math.random() - .5) * .6, top + i * ppi / 6 + (Math.random() - .5) * .6); } });
+  g.globalAlpha = 1;
+  if (P.marks) {   // the marker: one size, one colour, multiplied into the paper
+    g.globalCompositeOperation = 'multiply'; g.strokeStyle = 'rgb(212,88,58)'; g.lineWidth = .05 * ppi; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(left - 4, top + ppi / 6 + 4); g.bezierCurveTo(left + 60, top + ppi / 6 + 7, left + 150, top + ppi / 6 + 2, left + 205, top + ppi / 6 + 5); g.stroke();
+    g.beginPath(); g.ellipse(left + 3.2 * ppi, top + 3 * ppi / 6 - 4, 1.2 * ppi, .22 * ppi, -.04, .3, TAU + .1); g.stroke();
+    g.globalCompositeOperation = 'source-over';
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = MAX_ANISO;
+  return { map: t, alpha: new THREE.CanvasTexture(a) };
+}
+function shadowTex() {
+  const c = mkCanvas(128, 128), g = c.getContext('2d');
+  g.shadowColor = '#000'; g.shadowBlur = 16; g.shadowOffsetX = 400; g.fillStyle = '#000'; g.fillRect(22 - 400, 22, 84, 84);   // canvas shadows blur everywhere
+  return new THREE.CanvasTexture(c);
+}
+const NX = 18, NZ = 18;
+function buildDesk() {
+  const st = shadowTex();
+  PAGES.forEach((P, i) => {
+    const { map, alpha } = pageCanvas(P);
+    const geo = new THREE.BufferGeometry(), pos = new Float32Array((NX + 1) * (NZ + 1) * 3), uv = new Float32Array((NX + 1) * (NZ + 1) * 2), idx = [];
+    for (let j = 0; j <= NZ; j++) for (let k = 0; k <= NX; k++) { const n = j * (NX + 1) + k; uv[n * 2] = k / NX; uv[n * 2 + 1] = 1 - j / NZ; }
+    for (let j = 0; j < NZ; j++) for (let k = 0; k < NX; k++) { const a = j * (NX + 1) + k, b = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); geo.setIndex(idx);
+    const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map, alphaMap: alpha, alphaTest: .5, side: THREE.DoubleSide, roughness: .92 }));
+    m.frustumCulled = false; m.receiveShadow = true; DESKG.add(m);
+    const sh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: st, transparent: true, opacity: .55, depthWrite: false }));
+    sh.rotation.x = -Math.PI / 2; sh.scale.set(P.w * 1.16, P.len * 1.16 + .4, 1); sh.renderOrder = -1; DESKG.add(sh);
+    const [x, z, yaw] = LAYOUT.pile[i];
+    pageMeshes.push({ P, m, sh, x, z, yaw, tx: x, tz: z, tyaw: yaw, lift: 0, tlift: 0, dirty: true });
+  });
+  // the wastebasket: a wire mesh on a dark rim, three crumpled pages inside
+  const wc = mkCanvas(512, 256), wg = wc.getContext('2d'); wg.fillStyle = '#000'; wg.fillRect(0, 0, 512, 256); wg.fillStyle = '#fff';
+  for (let x = 0; x < 512; x += 8) wg.fillRect(x, 0, 1.6, 256);
+  for (let y = 0; y < 256; y += 8) wg.fillRect(0, y, 512, 1.6);
+  const wt = new THREE.CanvasTexture(wc); wt.wrapS = wt.wrapT = THREE.RepeatWrapping; wt.repeat.set(3, 2);
+  const wire = new THREE.Mesh(new THREE.CylinderGeometry(BIN.r, BIN.rb, BIN.h, 64, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a342d, metalness: .6, roughness: .45, alphaMap: wt, alphaTest: .4, side: THREE.DoubleSide }));
+  wire.position.set(BIN.x, DESK_Y + BIN.h / 2, BIN.z); wire.castShadow = true; DESKG.add(wire);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(BIN.r, .06, 12, 96).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x2a2621, metalness: .7, roughness: .35 }));
+  rim.position.set(BIN.x, DESK_Y + BIN.h, BIN.z); DESKG.add(rim);
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(BIN.rb, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x1a1714, roughness: .8 }));
+  floor.position.set(BIN.x, DESK_Y + .02, BIN.z); DESKG.add(floor);
+  const paper = new THREE.MeshStandardMaterial({ color: 0xeee6d6, roughness: .95, flatShading: true });
+  [[-.5, .75, .3], [.6, .7, -.4], [0, 1.55, .1]].forEach(([dx, dy, dz], i) => {
+    const g = new THREE.IcosahedronGeometry(.72 - i * .06, 2), p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) { const f = .78 + Math.random() * .38; p.setXYZ(k, p.getX(k) * f, p.getY(k) * f, p.getZ(k) * f); }
+    g.computeVertexNormals();
+    const b = new THREE.Mesh(g, paper); b.position.set(BIN.x + dx, DESK_Y + dy, BIN.z + dz); b.rotation.set(i, i * 2, i * .5); b.castShadow = true; DESKG.add(b);
+  });
+  layDesk();
+}
+// how high the desk is at a point: pages below lift it, and a page bends down past their edges
+function deskHeight(x, z, below) {
+  let h = 0;
+  for (const q of below) {
+    const c = Math.cos(q.yaw), s = Math.sin(q.yaw), dx = x - q.x, dz = z - q.z;
+    const lx = dx * c - dz * s, lz = dx * s + dz * c;
+    const ox = Math.max(0, Math.abs(lx) - q.P.w / 2), oz = Math.max(0, Math.abs(lz) - q.P.len / 2), d = Math.hypot(ox, oz);
+    h = Math.max(h, (q.top ?? .012) * (1 - smooth(.1, 1.1, d)));
+  }
+  return h;
+}
+const HELD = new THREE.Matrix4();
+function layDesk() {
+  // stacking order: later pages lie on top; each page's top is one layer above what's under its centre
+  pageMeshes.forEach((q, i) => {
+    const below = pageMeshes.slice(0, i).filter(o => o.lift < .5);
+    q.top = deskHeight(q.x, q.z, below) + .014;
+    const c = Math.cos(q.yaw), s = Math.sin(q.yaw), pos = q.m.geometry.attributes.position, v = new THREE.Vector3();
+    const k = easeInOut(q.lift);
+    for (let j = 0; j <= NZ; j++) for (let n = 0; n <= NX; n++) {
+      const lx = (n / NX - .5) * q.P.w, lz = (j / NZ - .5) * q.P.len;
+      const x = q.x + lx * c + lz * s, z = q.z - lx * s + lz * c, y = DESK_Y + .01 + i * .004 + deskHeight(x, z, below);
+      if (k > 0) { v.set(lx, 0, lz).applyMatrix4(HELD); pos.setXYZ(j * (NX + 1) + n, x + (v.x - x) * k, y + (v.y - y) * k, z + (v.z - z) * k); }
+      else pos.setXYZ(j * (NX + 1) + n, x, y, z);
+    }
+    pos.needsUpdate = true; q.m.geometry.computeVertexNormals(); q.m.geometry.computeBoundingBox();
+    q.sh.position.set(q.x, DESK_Y + .004 + i * .0005, q.z);   // on the desk: a flat shadow over draped pages would cut through them q.sh.rotation.z = q.yaw; q.sh.material.opacity = .55 * (1 - k);
+  });
+}
+let deskMode = null;
+function setDesk(mode) {
+  deskMode = mode;
+  const L = LAYOUT[mode === 'grid' ? 'grid' : mode === 'wide' ? 'wide' : 'pile'];
+  pageMeshes.forEach((q, i) => { [q.tx, q.tz, q.tyaw] = L[i]; q.tlift = mode === 'read' && i === 0 ? 1 : 0; });
+  // reading: the room behind the held page dims, as it does in the app
+  pageMeshes.forEach((q, i) => { q.m.material.color.setScalar(mode === 'read' && i !== 0 ? .35 : 1); });
+  // the held page floats in front of the camera's chapter view, tilted toward you
+  HELD.compose(new THREE.Vector3(-4, DESK_Y + 4.2, 12.5), new THREE.Quaternion().setFromEuler(new THREE.Euler(deg(58), 0, 0)), new THREE.Vector3(1, 1, 1));
+  deskLightWant = mode ? 90 : 0;
+}
+function deskBox(mode) {
+  const L = LAYOUT[mode === 'grid' ? 'grid' : mode === 'wide' ? 'wide' : 'pile'], b = new THREE.Box3();
+  const add = (x, y, z) => b.expandByPoint(new THREE.Vector3(x, y, z));
+  if (mode === 'read') { const P = PAGES[0], v = new THREE.Vector3(); for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { v.set(sx * P.w / 2, 0, sz * P.len / 2).applyMatrix4(HELD); add(v.x, v.y, v.z); } return b; }
+  if (mode === 'bin') { add(BIN.x - BIN.r, DESK_Y, BIN.z - BIN.r); add(BIN.x + BIN.r, DESK_Y + BIN.h, BIN.z + BIN.r); add(-3, DESK_Y, 10); return b; }
+  const pick = mode === 'mark' ? [1] : PAGES.map((_, i) => i);
+  for (const i of pick) { const [x, z] = L[i], r = Math.hypot(PAGES[i].w, PAGES[i].len) / 2; add(x - r, DESK_Y, z - r); add(x + r, DESK_Y + .2, z + r); }
+  if (mode === 'scene' || mode === 'wide') { add(-6, DESK_Y, -3.4); add(6.1, 1.2, 5.5); add(BIN.x - BIN.r, DESK_Y, BIN.z - BIN.r); }
+  return b;
+}
+function updateDesk(dt) {
+  let moving = false; const k = 1 - Math.exp(-dt * 3.2);
+  for (const q of pageMeshes) {
+    const d = Math.abs(q.tx - q.x) + Math.abs(q.tz - q.z) + Math.abs(q.tyaw - q.yaw) + Math.abs(q.tlift - q.lift);
+    if (d > 1e-3) { q.x += (q.tx - q.x) * k; q.z += (q.tz - q.z) * k; q.yaw += (q.tyaw - q.yaw) * k; q.lift += (q.tlift - q.lift) * Math.min(1, k * 1.3); moving = true; }
+  }
+  if (moving) layDesk();
+  const li = deskLight.intensity; deskLight.intensity += (deskLightWant - li) * k;
+  return moving || Math.abs(deskLight.intensity - li) > .05;
+}
+
+// ---------------------------------------------------------------- loop
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); dirty = true; }
+new ResizeObserver(resize).observe(stage);
+let visible = false, last = performance.now();
+new IntersectionObserver(es => { visible = es[0].isIntersecting; if (visible) { last = performance.now(); requestAnimationFrame(loop); } }, { threshold: .05 }).observe(stage);
+function loop(now) {
+  if (!visible) return;
+  const dt = Math.min(.25, (now - last) / 1000); last = now;
+  if (eTarget !== null) { eT = Math.min(1, eT + dt / 1.3); E = eFrom + (eTarget - eFrom) * easeInOut(eT); if (eT >= 1) eTarget = null; range.value = Math.round(E * 1000); dirty = true; }
+  toggle.textContent = (eTarget ?? E) > .5 ? 'Assemble' : 'Explode';
+  if (camFly) { camFly.t = Math.min(1, camFly.t + dt / camFly.dur); const k = easeInOut(camFly.t); camera.position.lerpVectors(camFly.p0, camFly.p1, k); controls.target.lerpVectors(camFly.t0, camFly.t1, k); if (camFly.t >= 1) camFly = null; dirty = true; }
+  if (controls.update()) dirty = true;
+  if (updateDesk(dt)) dirty = true;
+  if (dirty) {
+    applyExplode(); renderer.render(scene, camera); dirty = false;
+    // numbered callouts follow their parts once the machine is apart; chapter parts stay bright
+    const w = stage.clientWidth, h = stage.clientHeight, show = smooth(.2, .45, E);
+    parts.forEach(p => {
+      tmp.copy(p.anchor).addScaledVector(p.groups[0].off, kOf(p, E)).project(camera);
+      const vis = show * (focus ? (focus.has(p.id) ? (focus.size === 1 ? 0 : 1) : .22) : 1);   // a lone focused part needs no label
+      p.mark.style.transform = `translate(${(tmp.x * .5 + .5) * w}px, ${(-tmp.y * .5 + .5) * h}px) translate(-50%, -50%)`;
+      p.mark.style.opacity = tmp.z < 1 ? vis : 0; p.mark.style.pointerEvents = vis > .5 ? 'auto' : 'none';
+    });
+  }
+  requestAnimationFrame(loop);
+}
+
+(async () => {   // start once the fonts are in, so the printed labels use them
+await Promise.all([document.fonts.load('600 20px "IBM Plex Mono"'), document.fonts.load('500 20px "IBM Plex Mono"'), document.fonts.load('20px "Courier Prime"')]).catch(() => {});
+build(); buildDesk();
+camera.position.copy(HOME.pos); controls.target.copy(HOME.tgt);
+buildUI(); resize(); applyExplode();
+document.getElementById('xvLoad').remove();
+go(steps[0]); pickStep(); camFly && (camFly.t = 1);
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

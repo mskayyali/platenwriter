@@ -1,0 +1,166 @@
+:root { --ink: #e9e2d2; --dim: rgba(233,226,210,.38); }
+  html, body { margin: 0; height: 100%; background: #050403; overflow: hidden; }
+  body { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); }
+  canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+  #vignette { position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 45%, rgba(0,0,0,.55) 100%); }
+  #grain { position: fixed; inset: 0; pointer-events: none; opacity: .045; }
+  @keyframes grain { 0%{transform:translate(0,0)} 20%{transform:translate(-3%,2%)} 40%{transform:translate(2%,-4%)}
+    60%{transform:translate(-4%,-1%)} 80%{transform:translate(3%,3%)} 100%{transform:translate(0,0)} }
+  #intro { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; background: #050403; transition: opacity .5s ease; cursor: pointer; z-index: 5; }
+  #intro.gone { opacity: 0 !important; pointer-events: none; }
+  #intro .intro-main { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 0 16px; text-align: center; }
+  #intro h1 { font: 500 13px/1 "IBM Plex Mono", monospace; letter-spacing: .55em; text-indent: .55em; color: var(--ink); }
+  #intro .about span { display: block; text-wrap: balance; }
+  #intro .about { margin: 0; max-width: 60em; text-wrap: balance; font-size: 12px; line-height: 1.9; color: rgba(233,226,210,.62); letter-spacing: .02em; }
+  #intro .prompt { margin: 8px 0 0; font-size: 11px; color: var(--dim); letter-spacing: .1em; }
+  #intro .credit { position: absolute; left: 16px; right: 16px; bottom: 20px; text-align: center; font-size: 11px; letter-spacing: .06em; color: var(--dim); }
+  #intro .credit a { color: var(--ink); text-decoration: none; border-bottom: 1px solid rgba(233,226,210,.25); padding-bottom: 1px; }
+  #intro .credit a:hover { border-bottom-color: var(--ink); }
+  #intro .credit a:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 2px; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  /* the start screen arrives in one order, one thing at a time: the roller, its shaft turning once, the name,
+     then the words. Nothing overlaps, so nothing competes. */
+  #intro .mark { width: 64px; height: 64px; overflow: visible; margin-bottom: -14px; }
+  #intro .mark .roller { fill: #c8452f; transform-box: fill-box; transform-origin: center; opacity: 0; transform: scale(.92);
+    animation: roll .9s .25s cubic-bezier(.2, .7, .2, 1) forwards; }
+  /* the shaft ring draws once around, starting at the top, like the roller making one turn */
+  #intro .mark .shaft { fill: none; stroke: rgba(246,240,228,.92); stroke-width: 1.3; stroke-linecap: round;
+    transform-box: fill-box; transform-origin: center; transform: rotate(-90deg);
+    stroke-dasharray: 21.4; stroke-dashoffset: 21.4; animation: turn .9s .85s cubic-bezier(.45, 0, .2, 1) forwards; }
+  #intro h1 { margin: 0 0 22px; opacity: 0; animation: markIn .8s 1.4s ease forwards; }
+  #intro .about span { opacity: 0; animation: rise .9s ease forwards; }
+  #intro .about span:nth-child(1) { animation-delay: 1.75s; }
+  #intro .about span:nth-child(2) { animation-delay: 1.87s; }
+  #intro .about span:nth-child(3) { animation-delay: 1.99s; }
+  #intro .about span:nth-child(4) { animation-delay: 2.11s; }
+  #intro .prompt, #intro .device { opacity: 0; animation: markIn .8s 2.5s ease forwards; }
+  #intro:not(.loading) .prompt { animation: markIn .8s 2.5s ease forwards, pulse 2.6s 3.3s ease-in-out infinite; }
+  #intro .credit { opacity: 0; animation: markIn .8s 2.7s ease forwards; }
+  @keyframes roll { to { opacity: 1; transform: scale(1); } }
+  @keyframes turn { to { stroke-dashoffset: 0; } }
+  @keyframes markIn { to { opacity: 1; } }
+  @keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    #intro .mark *, #intro h1, #intro .about span, #intro .prompt, #intro .device, #intro .credit { animation: none !important; opacity: 1 !important; }
+    #intro .mark .roller { transform: none !important; }
+    #intro .mark .shaft { stroke-dashoffset: 0 !important; }
+  }
+  #help { position: fixed; left: 16px; bottom: 14px; right: 16px; font-size: 11px; line-height: 1.9; color: var(--dim);
+    letter-spacing: .03em; pointer-events: none; transition: opacity .8s; opacity: 0; z-index: 2; }
+  #help.on { opacity: 1; }
+  #help kbd { font: inherit; color: var(--ink); border: 1px solid rgba(233,226,210,.18); border-radius: 3px; padding: 0 4px; margin-right: 3px; }
+  #help span { margin-right: 16px; white-space: nowrap; display: inline-block; }
+  #views { position: fixed; right: 16px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 12px; z-index: 2; pointer-events: none; }
+  #views div { display: flex; align-items: center; justify-content: flex-end; gap: 8px; font-size: 10px; letter-spacing: .08em; color: transparent; transition: color .4s; }
+  #views div.on { color: var(--dim); }
+  #views i { width: 5px; height: 5px; border-radius: 50%; background: rgba(233,226,210,.18); transition: background .4s, transform .4s; }
+  #views div.on i { background: var(--ink); transform: scale(1.3); }
+  #actions { position: fixed; right: 16px; bottom: 14px; display: flex; gap: 8px; z-index: 4; opacity: 0; pointer-events: none; transition: opacity .5s; }
+  #actions.on { opacity: 1; pointer-events: auto; }
+  #actions button { font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .05em; color: var(--ink); background: rgba(12,11,10,.72);
+    border: 1px solid rgba(233,226,210,.22); border-radius: 4px; padding: 7px 12px; cursor: pointer; }
+  #actions button:hover { border-color: rgba(233,226,210,.5); }
+  #actions button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  #toast { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); font-size: 11px; letter-spacing: .1em;
+    color: var(--ink); background: rgba(10,9,8,.7); border: 1px solid rgba(233,226,210,.14); padding: 6px 12px; border-radius: 4px;
+    opacity: 0; transition: opacity .4s; pointer-events: none; z-index: 3; }
+  #toast.on { opacity: 1; }
+#mute { position: fixed; top: 14px; right: 14px; z-index: 4; width: 34px; height: 34px; display: grid; place-items: center;
+  color: var(--dim); background: transparent; border: 1px solid transparent; border-radius: 50%; cursor: pointer; transition: color .3s, border-color .3s; }
+#mute:hover { color: var(--ink); border-color: rgba(233,226,210,.2); }
+#mute:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#mute .cross { display: none; }
+#mute.off .wave { display: none; }
+#mute.off .cross { display: inline; }
+/* desk tools: a quiet pill at the bottom of the desk views */
+#tools { position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 8px); z-index: 4; display: flex; gap: 4px; padding: 4px;
+  background: rgba(14,13,12,.72); border: 1px solid rgba(233,226,210,.12); border-radius: 999px; backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none; transition: opacity .4s, transform .4s; }
+#tools.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+#tools button { display: flex; align-items: center; gap: 7px; padding: 7px 14px 7px 11px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .06em; color: var(--dim); background: transparent; transition: color .2s, background .2s; }
+#tools button:hover { color: var(--ink); }
+#tools button[aria-pressed="true"] { color: var(--ink); background: rgba(233,226,210,.1); }
+#tools button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#tools .tip { fill: rgb(212,88,58); }
+/* the marker's cursor: a small ring with the ink at its centre (hotspot exact) */
+canvas#c.marking { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22'%3E%3Ccircle cx='11' cy='11' r='7' fill='none' stroke='%23f2ede1' stroke-opacity='.8' stroke-width='1.2'/%3E%3Ccircle cx='11' cy='11' r='2.4' fill='rgb(212,88,58)'/%3E%3C/svg%3E") 11 11, crosshair; }
+/* phones: the introduction only */
+#intro .device { margin: 10px 0 0; max-width: 26em; font-size: 12px; line-height: 1.8; color: var(--ink); opacity: .8; }
+#intro.phone { cursor: default; }
+@media (max-width: 520px) { #intro .about span { display: inline; } #intro .about { font-size: 12px; } }
+/* touch: no browser gestures on the scene; bigger targets */
+canvas#c { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#views { pointer-events: auto; }
+#views div { cursor: pointer; padding: 4px 0; }
+#kbd { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none; font-size: 16px; pointer-events: none; }
+#touchbar { position: fixed; left: 50%; bottom: 18px; transform: translate(-50%, 8px); z-index: 4; display: flex; gap: 4px; padding: 4px;
+  background: rgba(14,13,12,.72); border: 1px solid rgba(233,226,210,.12); border-radius: 999px; backdrop-filter: blur(8px);
+  opacity: 0; pointer-events: none; transition: opacity .4s, transform .4s; }
+#touchbar.on { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+#touchbar button, #tools button { min-height: 36px; }
+#touchbar button { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .05em; color: var(--dim); background: transparent; }
+#touchbar button[aria-pressed="true"] { color: var(--ink); background: rgba(233,226,210,.1); }
+#touchbar button b { font-weight: 700; } #touchbar button u { text-underline-offset: 3px; }
+#tools kbd { font: 500 10px "IBM Plex Mono", monospace; color: var(--dim); border: 1px solid rgba(233,226,210,.18); border-radius: 3px; padding: 0 4px; margin-left: 2px; }
+@media (pointer: coarse) {
+  #tools kbd { display: none; }
+  #touchbar button, #tools button { min-height: 44px; padding-left: 16px; padding-right: 16px; }
+  #views { gap: 18px; } #views div { padding: 8px 0 8px 18px; } #views div span { color: var(--dim); }
+  #mute { width: 44px; height: 44px; }
+}
+/* keep the held-sheet hints clear of the centred toolbar */
+#help { right: auto; max-width: calc(50% - 200px); }
+@media (max-width: 900px) { #help { max-width: calc(50% - 170px); } }
+/* destructive actions: set apart in the toolbar, and always confirmed */
+#tools .sep { width: 1px; margin: 6px 4px; background: rgba(233,226,210,.14); }
+#tools button:disabled { opacity: .35; cursor: default; }
+#tools button:disabled:hover { color: var(--dim); }
+#confirm { max-width: 360px; padding: 22px 22px 18px; border: 1px solid rgba(233,226,210,.16); border-radius: 10px;
+  background: #121110; color: var(--ink); font: 12px/1.7 "IBM Plex Mono", monospace; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+#confirm::backdrop { background: rgba(3,2,2,.55); backdrop-filter: blur(2px); }
+#confirm p { margin: 0 0 18px; }
+#confirm .row { display: flex; justify-content: flex-end; gap: 8px; }
+#confirm button { font: 500 11px "IBM Plex Mono", monospace; letter-spacing: .05em; padding: 8px 14px; border-radius: 6px; cursor: pointer;
+  color: var(--ink); background: transparent; border: 1px solid rgba(233,226,210,.2); min-height: 36px; }
+#confirm button.danger { background: #c8452f; border-color: #c8452f; color: #fff6ee; }
+#confirm button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+#actions button[data-act="bin"] { color: #e9a592; }
+#tools button, #touchbar button, #confirm button { white-space: nowrap; }
+/* the hints sit on their own backing so they stay legible over paper, and the desk tools move to the
+   top while a sheet is held up to read, so neither covers the text or each other */
+#help { background: rgba(14,13,12,.78); border: 1px solid rgba(233,226,210,.12); border-radius: 10px; padding: 5px 12px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); color: rgba(233,226,210,.72); width: max-content; }
+#help:empty { display: none; }
+#tools.top { top: 16px; bottom: auto; transform: translate(-50%, -8px); }
+#tools.top.on { transform: translate(-50%, 0); }
+#help span:last-child { margin-right: 0; }
+/* about: a small round button beside the sound toggle, and a quiet modal */
+#infoBtn { position: fixed; top: 14px; right: 54px; z-index: 4; width: 34px; height: 34px; display: grid; place-items: center;
+  color: var(--dim); background: transparent; border: 1px solid transparent; border-radius: 50%; cursor: pointer; transition: color .3s, border-color .3s; }
+#infoBtn:hover { color: var(--ink); border-color: rgba(233,226,210,.2); }
+#infoBtn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+@media (pointer: coarse) { #infoBtn { width: 44px; height: 44px; right: 64px; } }
+#info { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; padding: 26px 28px 24px; border: 0; border-radius: 14px;
+  background: #121110; color: var(--ink); font: 13px/1.75 "IBM Plex Mono", monospace; box-shadow: 0 30px 80px rgba(0,0,0,.7); }
+#info::backdrop { background: rgba(3,2,2,.6); backdrop-filter: blur(3px); }
+#info .info-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+#info .info-mark { width: 26px; height: 26px; }
+#info h2 { margin: 0; font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .5em; flex: 1; }
+#info .info-head form { margin: 0; }
+#info .info-close { width: 32px; height: 32px; border: 0; border-radius: 50%; background: rgba(233,226,210,.06); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+#info .info-close:hover { background: rgba(233,226,210,.14); }
+#info p { margin: 0 0 12px; color: rgba(233,226,210,.82); }
+#info h3 { margin: 20px 0 8px; font: 500 10px "IBM Plex Mono", monospace; letter-spacing: .18em; text-transform: uppercase; color: #c8452f; }
+#info .info-keys { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 12px; }
+#info .info-keys dt { color: var(--ink); white-space: nowrap; }
+#info .info-keys dd { margin: 0; color: rgba(233,226,210,.62); }
+#info kbd { font: inherit; border-radius: 4px; padding: 0 5px; background: rgba(233,226,210,.08); }
+#info .info-note { margin-top: 18px; font-size: 12px; color: rgba(233,226,210,.55); }
+#info .info-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+#info .info-links a { color: var(--ink); text-decoration: none; padding: 8px 14px; border-radius: 999px; background: rgba(233,226,210,.08); font-size: 12px; }
+#info .info-links a:hover { background: rgba(233,226,210,.16); }
+#info .info-links a:focus-visible, #info .info-close:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

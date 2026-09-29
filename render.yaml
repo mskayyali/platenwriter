@@ -1,0 +1,29 @@
+# Render Blueprint (this folder is the repo root): a free static site. Render → New → Blueprint → pick the repo.
+services:
+  - type: web
+    name: platen
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    previews:
+      generation: off
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    domains:
+      - platenwriter.app
+      - www.platenwriter.app
+    headers:
+      # hashed build assets never change: cache for a year
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Permissions-Policy
+        value: camera=(), microphone=(), geolocation=()

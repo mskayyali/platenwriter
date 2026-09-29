@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Platen: the roller seen end-on. Red, with a light ring for its shaft. -->
+  <circle cx="32" cy="32" r="28" fill="#c8452f"/>
+  <circle cx="32" cy="32" r="6.4" fill="none" stroke="#f6f0e4" stroke-width="2.4"/>
+</svg>
